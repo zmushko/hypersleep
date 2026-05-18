@@ -21,6 +21,7 @@ compile_commands.json
 # Dependencies
 third_party/*/
 !third_party/.gitkeep
+!third_party/librnotify
 
 # Test artefacts
 tests/tmp/
