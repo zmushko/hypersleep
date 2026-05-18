@@ -8,6 +8,7 @@
 #ifndef RENATUM_WATCHER_H
 #define RENATUM_WATCHER_H
 
+#include "renatum.h"
 #include "config.h"
 
 typedef struct rnt_watcher rnt_watcher_t;

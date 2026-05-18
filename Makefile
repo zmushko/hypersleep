@@ -12,7 +12,7 @@ SYSTEMDDIR  ?= /etc/systemd/system
 CC          ?= gcc
 CFLAGS      ?= -O2 -g -Wall -Wextra -Wpedantic -Wno-unused-parameter
 CFLAGS      += -std=c11 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
-CPPFLAGS    += -Iinclude -Ithird_party/librnotify/include
+CPPFLAGS    += -Iinclude -Ithird_party/librnotify
 
 LDFLAGS     ?=
 LDLIBS      += -lcrypto -llmdb -lpthread
