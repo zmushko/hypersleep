@@ -1,0 +1,35 @@
+# Build artefacts
+*.o
+*.a
+*.so
+*.so.*
+renatumd
+renatum
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+tags
+TAGS
+.cache/
+compile_commands.json
+
+# Dependencies
+third_party/*/
+!third_party/.gitkeep
+
+# Test artefacts
+tests/tmp/
+tests/*.log
+core
+core.*
+vgcore.*
+
+# Local config / runtime
+*.local.conf
+/tmp_store/
+/tmp_index/

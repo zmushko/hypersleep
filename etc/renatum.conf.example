@@ -1,0 +1,42 @@
+# /etc/renatum/renatum.conf — example
+# See docs/config.md for the full reference.
+
+# --- Storage ---------------------------------------------------------------
+
+storage         /var/lib/renatum/store
+index           /var/lib/renatum/index
+log             /var/log/renatum/renatumd.log
+log-level       info
+control-socket  /run/renatum/control.sock
+
+# --- Watched paths ---------------------------------------------------------
+
+# Personal projects: long retention, aggressive exclude of build artefacts
+watch /home/andrey/projects \
+    exclude="\.git/|node_modules/|target/|build/|\.o$|\.swp$|~$"
+
+# System config: infinite retention, capture everything
+watch /etc retention=infinite
+
+# Application configs (browser caches excluded)
+watch /home/andrey/.config \
+    exclude="Cache/|Trash/|Singleton(Cookie|Lock|Socket)$"
+
+# --- Inotify tuning --------------------------------------------------------
+
+inotify-max-watches-warn 524288
+debounce-ms              1500
+queue-poll-ms             500
+
+# --- Storage policy --------------------------------------------------------
+
+compress-default          no
+compress-min-size       4096
+fsync-mode              full
+store-fmode             0600
+
+# --- Retention defaults ----------------------------------------------------
+
+retention-default       90d
+gc-after-prune          yes
+auto-prune-schedule     "03:00 daily"

@@ -1,0 +1,3 @@
+[submodule "third_party/librnotify"]
+	path = third_party/librnotify
+	url = https://github.com/zmushko/librnotify.git
