@@ -33,6 +33,12 @@ typedef struct rnt_watch {
     uint64_t      retention_ns;     /* 0 = infinite */
     enum rnt_priority priority;
     bool          compress;
+    /* Parser bookkeeping: true if the watch directive set the field
+     * explicitly. Used by config_load to apply retention-default /
+     * compress-default after the whole file is parsed, so directive
+     * order in the config file does not matter. */
+    bool          set_retention;
+    bool          set_compress;
 } rnt_watch_t;
 
 typedef struct rnt_config {
