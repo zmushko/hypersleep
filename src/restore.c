@@ -64,7 +64,12 @@ int restore_to(rnt_store_t *store,
     if (dst_dup == NULL) return -1;
     const char *dir = dirname(dst_dup);
 
-    int dir_fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    /* O_NOFOLLOW prevents following a symlink at the final
+     * component of the parent path. Symlinks earlier in the path
+     * are still resolved (no walk-time alternative without
+     * openat/O_PATH chains), but this catches the common case of
+     * an attacker-planted "use this dir instead" link. */
+    int dir_fd = open(dir, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (dir_fd < 0) {
         log_error("restore: open dir %s: %s", dir, strerror(errno));
         free(dst_dup);

@@ -175,7 +175,13 @@ int cmd_show(int argc, char **argv, const rnt_config_t *cfg)
 
     int out_fd = STDOUT_FILENO;
     if (out_path) {
-        out_fd = open(out_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        /* O_NOFOLLOW so the user cannot have a pre-planted symlink
+         * at --out steer the bytes into a victim file. O_EXCL
+         * already forbids overwriting, but a symlink could point
+         * at a not-yet-existing path. */
+        out_fd = open(out_path,
+                      O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                      0600);
         if (out_fd < 0) {
             fprintf(stderr, "renatum show: cannot create %s: %s\n",
                     out_path, strerror(errno));

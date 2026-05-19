@@ -46,7 +46,9 @@ static void usage(const char *prog) {
 }
 
 static int acquire_lock(const char *path) {
-    int fd = open(path, O_WRONLY | O_CREAT | O_CLOEXEC, 0600);
+    /* O_NOFOLLOW prevents a pre-planted symlink at the lock path
+     * from steering us into a victim file when O_CREAT triggers. */
+    int fd = open(path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
     if (fd < 0) return -1;
     if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
         close(fd);

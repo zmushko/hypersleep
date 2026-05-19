@@ -24,6 +24,7 @@
 #include "config.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -87,7 +88,15 @@ void log_init(const rnt_config_t *cfg, bool foreground)
      * if there's no path or we can't open it. We do NOT silently
      * drop logs — syslog is always reachable. */
     if (cfg && cfg->log_path) {
-        FILE *f = fopen(cfg->log_path, "a");
+        /* O_NOFOLLOW so a symlink at the configured log path (e.g.
+         * a misconfiguration or a deliberate plant) does not steer
+         * append-writes into a victim file like /etc/passwd. */
+        int fd = open(cfg->log_path,
+                      O_WRONLY | O_CREAT | O_APPEND
+                      | O_NOFOLLOW | O_CLOEXEC,
+                      0640);
+        FILE *f = (fd >= 0) ? fdopen(fd, "a") : NULL;
+        if (f == NULL && fd >= 0) close(fd);
         if (f) {
             setvbuf(f, NULL, _IOLBF, 0);
             g.backend = LOG_BACKEND_FILE;
