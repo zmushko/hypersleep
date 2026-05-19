@@ -58,6 +58,13 @@ struct watch_unit {
     int                 fd;      /* cached notifyFd(notify) */
 };
 
+struct ext_attachment {
+    bool   active;
+    int    fd;
+    void (*fn)(void *user);
+    void  *user;
+};
+
 struct rnt_watcher {
     const rnt_config_t        *cfg;
     rnt_snapshot_t            *snapshot;
@@ -66,6 +73,7 @@ struct rnt_watcher {
     size_t                     n_units;
     int                        epfd;
     volatile sig_atomic_t     *stop_flag;
+    struct ext_attachment      ext;
 };
 
 /* ------------------------------------------------------------------ */
@@ -276,8 +284,15 @@ int watcher_run(rnt_watcher_t *w)
             return -1;
         }
         for (int i = 0; i < n; i++) {
-            struct watch_unit *u = events[i].data.ptr;
-            if (u) drain_unit(w, u);
+            /* events[i].data.ptr == NULL is the sentinel for the
+             * external attachment (see watcher_attach_fd). */
+            if (events[i].data.ptr == NULL) {
+                if (w->ext.active && w->ext.fn) {
+                    w->ext.fn(w->ext.user);
+                }
+            } else {
+                drain_unit(w, events[i].data.ptr);
+            }
         }
         /* Tick the debouncer regardless of why we woke — pending
          * entries whose quiet window has elapsed need a push even
@@ -302,4 +317,33 @@ int watcher_force_snapshot(rnt_watcher_t *w, const char *path,
         return -1;
     }
     return snapshot_force(w->snapshot, path, out_sha);
+}
+
+int watcher_attach_fd(rnt_watcher_t *w, int fd,
+                      void (*fn)(void *user), void *user)
+{
+    if (w == NULL || fn == NULL || fd < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (w->ext.active) {
+        errno = EBUSY;
+        return -1;
+    }
+    /* NULL ptr is the sentinel for "external" in the dispatch
+     * loop; watch_unit pointers are always non-NULL. */
+    struct epoll_event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.events   = EPOLLIN;
+    ev.data.ptr = NULL;
+    if (epoll_ctl(w->epfd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+        log_error("watcher: epoll_ctl ADD external fd %d: %s",
+                  fd, strerror(errno));
+        return -1;
+    }
+    w->ext.active = true;
+    w->ext.fd     = fd;
+    w->ext.fn     = fn;
+    w->ext.user   = user;
+    return 0;
 }

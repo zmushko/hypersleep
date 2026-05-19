@@ -18,11 +18,13 @@
 #include "config.h"
 #include "log.h"
 #include "watcher.h"
+#include "control.h"
 #include "snapshot.h"
 #include "store.h"
 #include "index.h"
 #include "renatum.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -131,6 +133,15 @@ int main(int argc, char **argv) {
     rnt_watcher_t *watcher = watcher_create(cfg, snapshot, &g_running);
     if (!watcher) { log_error("watcher_create failed"); goto err_snap; }
 
+    /* Control socket is optional — if /run/renatum/ is unwritable
+     * (no permissions, no systemd-managed runtime dir), log and
+     * continue without the pre-snapshot rendezvous. The CLI falls
+     * back to its --no-pre-snapshot behaviour with a warning. */
+    rnt_control_t *control = control_open(cfg->control_socket, watcher);
+    if (!control) {
+        log_warn("renatumd: control socket disabled (%s)", strerror(errno));
+    }
+
     log_info("renatumd %d.%d.%d started, watching %zu paths",
              RENATUM_VERSION_MAJOR, RENATUM_VERSION_MINOR,
              RENATUM_VERSION_PATCH, cfg->n_watches);
@@ -139,6 +150,7 @@ int main(int argc, char **argv) {
 
     log_info("renatumd shutting down");
 
+    if (control) control_close(control);
     watcher_destroy(watcher);
     snapshot_destroy(snapshot);
     index_close(index);

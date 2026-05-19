@@ -33,4 +33,12 @@ int watcher_run(rnt_watcher_t *w);
 int watcher_force_snapshot(rnt_watcher_t *w, const char *path,
                            uint8_t out_sha[RNT_SHA_LEN]);
 
+/* Attach an external readable fd to the watcher's epoll loop. The
+ * `fn` callback fires when the fd becomes readable; it must drain
+ * the fd before returning. Only one external attachment is
+ * supported at a time (sufficient for the control socket); a
+ * second call returns EBUSY. */
+int watcher_attach_fd(rnt_watcher_t *w, int fd,
+                      void (*fn)(void *user), void *user);
+
 #endif /* RENATUM_WATCHER_H */
