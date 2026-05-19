@@ -76,6 +76,13 @@ int index_moves_gc(rnt_index_t *idx, uint64_t older_than_ns);
 int index_prune_by_age(rnt_index_t *idx, uint64_t older_than_ns,
                        size_t *out_pruned);
 
+/* Look up the by_sha refcount for a digest. Returns 0 with *out=0 when
+ * the SHA is absent (unreferenced), 0 with *out>0 when present, -1 on
+ * error. */
+int index_sha_refcount(rnt_index_t *idx,
+                       const uint8_t sha[RNT_SHA_LEN],
+                       uint32_t *out);
+
 /* Schema migration on open if needed. Returns RNT_SCHEMA_VERSION
  * supported, or negative if incompatible. */
 int index_schema_check(rnt_index_t *idx);

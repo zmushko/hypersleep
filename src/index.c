@@ -795,6 +795,25 @@ int index_moves_gc(rnt_index_t *idx, uint64_t older_than_ns)
 /* SHAs whose refcount reached zero — caller deletes those blobs.    */
 /* ------------------------------------------------------------------ */
 
+int index_sha_refcount(rnt_index_t *idx,
+                       const uint8_t sha[RNT_SHA_LEN],
+                       uint32_t *out)
+{
+    if (idx == NULL || sha == NULL || out == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    MDB_txn *txn = NULL;
+    int rc = mdb_txn_begin(idx->env, NULL, MDB_RDONLY, &txn);
+    if (rc != 0) return lmdb_fail(rc, "mdb_txn_begin (refcount)");
+    uint32_t v = 0;
+    rc = by_sha_get(txn, idx->by_sha, sha, &v);
+    mdb_txn_abort(txn);
+    if (rc != 0) return lmdb_fail(rc, "by_sha_get (refcount)");
+    *out = v;
+    return 0;
+}
+
 int index_prune_by_age(rnt_index_t *idx, uint64_t older_than_ns,
                        size_t *out_pruned)
 {

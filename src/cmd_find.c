@@ -1,11 +1,23 @@
 /*
- * cmd_find.c — TODO: implement
+ * cmd_find.c — renatum find
  *
- * See docs/architecture.md and docs/cli-spec.md for the design.
- * This file is a deliberate placeholder for Claude Code (or you) to fill in.
+ * Deferred to v0.1.0+. A useful implementation needs an
+ * index_iter_prefix or index_iter_all over the files sub-DB
+ * (currently the only iterator walks a single exact path).
+ * Stubbed out so the CLI binary still links and so users get a
+ * clear "not yet" rather than a silent no-op.
  */
 
-#include "renatum.h"
 #include "config.h"
+#include "renatum.h"
 
-/* Stub functions to make the linker happy until real implementation lands. */
+#include <stdio.h>
+
+int cmd_find(int argc, char **argv, const rnt_config_t *cfg)
+{
+    (void)argc; (void)argv; (void)cfg;
+    fprintf(stderr,
+            "renatum find: not implemented in v0.1.0 "
+            "(needs index prefix iterator)\n");
+    return RNT_EXIT_USAGE;
+}
