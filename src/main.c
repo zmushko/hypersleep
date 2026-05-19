@@ -125,8 +125,11 @@ int main(int argc, char **argv) {
         goto err_index;
     }
 
-    rnt_watcher_t *watcher = watcher_create(cfg);
-    if (!watcher) { log_error("watcher_create failed"); goto err_index; }
+    rnt_snapshot_t *snapshot = snapshot_create(store, index);
+    if (!snapshot) { log_error("snapshot_create failed"); goto err_index; }
+
+    rnt_watcher_t *watcher = watcher_create(cfg, snapshot, &g_running);
+    if (!watcher) { log_error("watcher_create failed"); goto err_snap; }
 
     log_info("renatumd %d.%d.%d started, watching %zu paths",
              RENATUM_VERSION_MAJOR, RENATUM_VERSION_MINOR,
@@ -137,12 +140,14 @@ int main(int argc, char **argv) {
     log_info("renatumd shutting down");
 
     watcher_destroy(watcher);
+    snapshot_destroy(snapshot);
     index_close(index);
     store_close(store);
     config_free(cfg);
     log_close();
     return rc;
 
+err_snap:  snapshot_destroy(snapshot);
 err_index: index_close(index);
 err_store: store_close(store);
 err_cfg:   config_free(cfg);
