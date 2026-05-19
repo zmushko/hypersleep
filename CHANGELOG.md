@@ -7,7 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### TODO before v0.1.0 → v0.2.0
+
+- Stress tests in `tests/stress/` (deep_mkdir, atomic_save,
+  IN_Q_OVERFLOW recovery, symlink_no_follow, recursive_move —
+  mirroring the librnotify suite at one level up).
+- `renatum restore --force` CLI side: control-socket client,
+  interactive confirmation, post-write integrity verify loop.
+- `renatum find` — needs an index iterator over a path prefix
+  (or the whole files sub-DB) before it can serve `--name`,
+  `--grep`, `--deleted`, etc.
+- `renatum restore-tree` and `renatum recover` (interactive).
+- `renatum gc` as a standalone command.
+- `renatum config reload` once main.c starts persisting the pid
+  into the lock file.
+- Compression: optional zstd-framed blobs (RNT_FLAG_COMPRESSED
+  already reserved in the schema).
+- Time-based selectors for `show`/`diff`/`restore` (`--at`,
+  `--before`, `--by-sha`).
+- Audit pipeline: queue depth peak, last overflow ts, last GC
+  written into meta and surfaced by `renatum status`.
+
+## [0.1.0] — 2026-05-19
+
+First implementable cut. The daemon captures content into a
+content-addressable store with an LMDB index; the CLI lets an
+operator inspect history, view a past version, diff between
+versions, and restore one to a new path.
+
 ### Added
+
+- `log.c` — three-backend logging (stderr / file / syslog) with
+  UTC millisecond timestamps and a zero-init bootstrap mode so
+  log calls work before log_init.
+- `timeparse.c` — duration parser (`30d`, `12h`, `infinite`, …)
+  with overflow guards.
+- `config.c` — full renatum.conf parser with line continuation,
+  quoted-value tokens, post-pass resolution of retention-default
+  and compress-default (directive order no longer matters).
+- `index.c` — LMDB-backed index with five sub-DBs (files, by_sha,
+  deletions, moves, meta), big-endian timestamp keys for
+  chronological cursor walks, schema versioning, exponential
+  doubling for the path table.
+- `store.c` — content-addressable storage on disk
+  (`<root>/<sha[0:2]>/<sha[2:]>`); atomic put via mkstemp +
+  rename + dir fsync; idempotent re-puts; OpenSSL EVP_sha256.
+- `snapshot.c` — the file → CAS pipeline: lstat, (mtime, size)
+  pre-check, store_put, (path, sha) idempotency, index_insert.
+  Handles deletes, move-from/to pairing, IN_Q_OVERFLOW rescans
+  via nftw(FTW_PHYS|FTW_MOUNT).
+- `debounce.c` — per-path event coalescing on a monotonic timer.
+- `watcher.c` — librnotify v3 multiplexer through one epoll;
+  one Notify per cfg watch directive; full-path exclude regex
+  applied post-receive (librnotify's own regex matches only
+  the entry name and docs/config.md promises full-path).
+- `control.c` — Unix-datagram control socket carrying
+  `SNAPSHOT <path>` → `OK <hex>` / `ERR <msg>` for the
+  pre-snapshot handshake.
+- `restore.c` — atomic CAS-to-filesystem extraction with
+  mkstemp + fchmod/fchown/futimens + rename + fsync(parent).
+- `retention.c` — orphan-blob sweep after prune.
+- CLI: `renatum status`, `renatum log`, `renatum show`,
+  `renatum diff`, `renatum restore --to`, `renatum verify`,
+  `renatum prune --older-than`, `renatum config show/test/paths`.
+- IN_Q_OVERFLOW rescan in the watcher + snapshot pipeline.
+- AT_NOFOLLOW audit pass — O_NOFOLLOW on every user- or
+  config-supplied final path component (cmd_show --out, log
+  destination, main.c lock file, restore.c parent directory).
+- Third-party librnotify upgraded to v3.0.0 (single-path
+  initNotify, notifyFd accessor, always-on IN_DONT_FOLLOW;
+  20+ bugfix commits landed in the underlying repo).
+
+### Known limitations
+
+- `renatum restore --force` is parsed but refuses with a clear
+  message; the CLI side of the control-socket dance is in the
+  v0.2.0 plan.
+- `renatum find` returns "not implemented" until the index
+  grows a prefix iterator.
+- `renatum config reload` does not actually send SIGHUP yet —
+  main.c does not persist its pid into the lock file.
+- Compression is deferred to v1.1 per the project brief; all
+  blobs are stored raw.
+- No stress test suite yet — librnotify's tests/ cover the
+  inotify layer, Renatum's own scenarios (atomic save, deep
+  mkdir, queue overflow) are still on the v0.2.0 list.
+
+## [0.0.0]
+
+### Added
+
 - Initial project skeleton
 - Architecture documentation
 - CLI specification
@@ -18,17 +107,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Content-addressable storage layout
 - systemd unit file with hardening
 - Apache-2.0 license
-
-### TODO before v0.1.0
-- [ ] Implement `store.c` (CAS read/write, fsync)
-- [ ] Implement `index.c` (LMDB sub-DBs, schema migration)
-- [ ] Implement `debounce.c` (per-path event coalescing)
-- [ ] Wire up `watcher.c` to actual librnotify API
-- [ ] Implement `config.c` parser
-- [ ] Implement `log.c` (stderr/syslog/file backends)
-- [ ] Implement `cmd_status`, `cmd_log`, `cmd_show`, `cmd_diff`
-- [ ] Implement `cmd_restore` with pre-snapshot safety
-- [ ] Implement `cmd_verify` (re-hash all blobs)
-- [ ] Stress tests in `tests/stress/`
-- [ ] AT_NOFOLLOW audit on every path open
-- [ ] IN_Q_OVERFLOW rescan implementation
