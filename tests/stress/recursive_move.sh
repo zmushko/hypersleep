@@ -32,12 +32,15 @@ settle 2
 assert_log_contains "$WATCH/dst/sub/file.txt" \
     "event inside moved subtree surfaces under new path"
 
-# The old prefix must not gain any new captures after the rename.
-# (The initial-scan synthetic event from before the rename does
-# carry the old path; that is correct and not what we are
-# asserting here. We assert that the LATEST version of the new
-# path is the post-rename content.)
-assert_show_eq "$WATCH/dst/sub/file.txt" v1 "after" \
-    "captured content under new path is the post-rename write"
+# After the move there are TWO versions under the new path:
+#   v1  the move-induced capture documenting "what was at the new
+#       path the moment it appeared" — content is the pre-rename
+#       file ("before");
+#   v2  the post-rename write of "after".
+# Both are intentional. Assert v1 == before, v2 == after.
+assert_show_eq "$WATCH/dst/sub/file.txt" v1 "before" \
+    "v1 under new path snapshots the pre-rename content"
+assert_show_eq "$WATCH/dst/sub/file.txt" v2 "after" \
+    "v2 under new path is the post-rename write"
 
 exit $FAILED
