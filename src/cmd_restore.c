@@ -1,5 +1,5 @@
 /*
- * cmd_restore.c — renatum restore <path> v<N> --to <dst>
+ * cmd_restore.c — hypersleep restore <path> v<N> --to <dst>
  *
  * v0.1.0 scope: --to only. --force (destructive in-place restore
  * with pre-snapshot via control socket) is deferred to v0.1.0+.
@@ -14,7 +14,7 @@
 #include "config.h"
 #include "index.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 #include "restore.h"
 #include "store.h"
 
@@ -36,19 +36,19 @@ static int parse_vn(const char *s, int *out_n)
     return 0;
 }
 
-static int resolve_version(rnt_index_t *idx, const char *path,
-                           int want_n, rnt_version_t *out)
+static int resolve_version(hs_index_t *idx, const char *path,
+                           int want_n, hs_version_t *out)
 {
-    rnt_index_cursor_t *cur = index_iter_path(idx, path);
+    hs_index_cursor_t *cur = index_iter_path(idx, path);
     if (cur == NULL) return -1;
     size_t cap = 16, n = 0;
-    rnt_version_t *list = malloc(cap * sizeof(*list));
+    hs_version_t *list = malloc(cap * sizeof(*list));
     if (list == NULL) { index_cursor_close(cur); return -1; }
-    rnt_version_t v;
+    hs_version_t v;
     while (index_cursor_next(cur, &v) == 0) {
         if (n == cap) {
             cap *= 2;
-            rnt_version_t *nl = realloc(list, cap * sizeof(*list));
+            hs_version_t *nl = realloc(list, cap * sizeof(*list));
             if (nl == NULL) { free(list); index_cursor_close(cur); return -1; }
             list = nl;
         }
@@ -65,7 +65,7 @@ static int resolve_version(rnt_index_t *idx, const char *path,
     return 0;
 }
 
-int cmd_restore(int argc, char **argv, const rnt_config_t *cfg)
+int cmd_restore(int argc, char **argv, const hs_config_t *cfg)
 {
     const char *to_path = NULL;
     bool force         = false;
@@ -92,56 +92,56 @@ int cmd_restore(int argc, char **argv, const rnt_config_t *cfg)
         case 'd': dry_run = true;         break;
         case 'h':
             fprintf(stderr,
-                "Usage: renatum restore <path> v<N> --to <dst> "
+                "Usage: hypersleep restore <path> v<N> --to <dst> "
                 "[--preserve-mode|--no-preserve-mode] [--dry-run]\n");
-            return RNT_EXIT_OK;
+            return HS_EXIT_OK;
         default:
-            return RNT_EXIT_USAGE;
+            return HS_EXIT_USAGE;
         }
     }
     if (optind + 1 >= argc) {
-        fprintf(stderr, "renatum restore: missing <path> v<N>\n");
-        return RNT_EXIT_USAGE;
+        fprintf(stderr, "hypersleep restore: missing <path> v<N>\n");
+        return HS_EXIT_USAGE;
     }
     const char *path = argv[optind];
     int want_n = 0;
     if (parse_vn(argv[optind + 1], &want_n) < 0) {
-        fprintf(stderr, "renatum restore: invalid '%s' (expected vN)\n",
+        fprintf(stderr, "hypersleep restore: invalid '%s' (expected vN)\n",
                 argv[optind + 1]);
-        return RNT_EXIT_USAGE;
+        return HS_EXIT_USAGE;
     }
 
     if (force) {
         fprintf(stderr,
-            "renatum restore: --force is not wired in v0.1.0; "
+            "hypersleep restore: --force is not wired in v0.1.0; "
             "use --to <dst> to write the version to a new path\n");
-        return RNT_EXIT_USAGE;
+        return HS_EXIT_USAGE;
     }
     if (to_path == NULL) {
         fprintf(stderr,
-            "renatum restore: --to <dst> required (use --force for "
+            "hypersleep restore: --to <dst> required (use --force for "
             "in-place when available)\n");
-        return RNT_EXIT_EXISTS;
+        return HS_EXIT_EXISTS;
     }
 
-    rnt_index_t *idx = index_open(cfg->index_path, RNT_IDX_READ);
+    hs_index_t *idx = index_open(cfg->index_path, HS_IDX_READ);
     if (idx == NULL) {
-        fprintf(stderr, "renatum restore: cannot open index\n");
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep restore: cannot open index\n");
+        return HS_EXIT_ERROR;
     }
-    rnt_version_t v;
+    hs_version_t v;
     if (resolve_version(idx, path, want_n, &v) < 0) {
         index_close(idx);
         if (errno == ENOENT) {
-            fprintf(stderr, "renatum restore: no versions for %s\n", path);
-            return RNT_EXIT_NOTFOUND;
+            fprintf(stderr, "hypersleep restore: no versions for %s\n", path);
+            return HS_EXIT_NOTFOUND;
         }
         if (errno == ERANGE) {
-            fprintf(stderr, "renatum restore: v%d out of range\n", want_n);
-            return RNT_EXIT_NOTFOUND;
+            fprintf(stderr, "hypersleep restore: v%d out of range\n", want_n);
+            return HS_EXIT_NOTFOUND;
         }
-        fprintf(stderr, "renatum restore: lookup failed: %s\n", strerror(errno));
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep restore: lookup failed: %s\n", strerror(errno));
+        return HS_EXIT_ERROR;
     }
     index_close(idx);
 
@@ -150,24 +150,24 @@ int cmd_restore(int argc, char **argv, const rnt_config_t *cfg)
         for (int i = 0; i < 4; i++)
             snprintf(hex + i * 2, 3, "%02x", v.sha256[i]);
         printf("would restore v%d (sha=%s..) to %s\n", v.num, hex, to_path);
-        return RNT_EXIT_OK;
+        return HS_EXIT_OK;
     }
 
-    rnt_store_t *st = store_open(cfg->store_path);
+    hs_store_t *st = store_open(cfg->store_path);
     if (st == NULL) {
-        fprintf(stderr, "renatum restore: cannot open store\n");
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep restore: cannot open store\n");
+        return HS_EXIT_ERROR;
     }
     int rc = restore_to(st, &v, to_path, preserve_mode);
     store_close(st);
     if (rc < 0) {
         if (errno == EEXIST) {
-            fprintf(stderr, "renatum restore: %s already exists\n", to_path);
-            return RNT_EXIT_EXISTS;
+            fprintf(stderr, "hypersleep restore: %s already exists\n", to_path);
+            return HS_EXIT_EXISTS;
         }
-        fprintf(stderr, "renatum restore: %s\n", strerror(errno));
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep restore: %s\n", strerror(errno));
+        return HS_EXIT_ERROR;
     }
     log_info("restored v%d -> %s", v.num, to_path);
-    return RNT_EXIT_OK;
+    return HS_EXIT_OK;
 }

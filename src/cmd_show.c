@@ -1,9 +1,9 @@
 /*
- * cmd_show.c — renatum show <path> v<N>
+ * cmd_show.c — hypersleep show <path> v<N>
  *
  * Prints the contents of a captured version to stdout (or to a file
  * via --out). Never touches the original watched path — that is
- * what `renatum restore` is for.
+ * what `hypersleep restore` is for.
  *
  * v0.1.0 scope: positional vN selector only. The --at/--before/
  * --by-sha selectors and --no-decompress flag are deferred.
@@ -12,7 +12,7 @@
 #include "config.h"
 #include "index.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 #include "store.h"
 
 #include <errno.h>
@@ -24,27 +24,27 @@
 #include <string.h>
 #include <unistd.h>
 
-/* Find the rnt_file_entry for the requested version number. Walks
+/* Find the hs_file_entry for the requested version number. Walks
  * all versions of `path` in the index so we can assign display
  * ranks (v1 = oldest, vN = newest) consistently with cmd_log. */
-static int resolve_version(rnt_index_t *idx, const char *path,
-                           int want_n, rnt_version_t *out)
+static int resolve_version(hs_index_t *idx, const char *path,
+                           int want_n, hs_version_t *out)
 {
-    rnt_index_cursor_t *cur = index_iter_path(idx, path);
+    hs_index_cursor_t *cur = index_iter_path(idx, path);
     if (cur == NULL) return -1;
 
     /* Buffer all entries first, then pick the want_n-th by rank. */
     size_t cap = 16, n = 0;
-    rnt_version_t *list = malloc(cap * sizeof(*list));
+    hs_version_t *list = malloc(cap * sizeof(*list));
     if (list == NULL) {
         index_cursor_close(cur);
         return -1;
     }
-    rnt_version_t v;
+    hs_version_t v;
     while (index_cursor_next(cur, &v) == 0) {
         if (n == cap) {
             cap *= 2;
-            rnt_version_t *nl = realloc(list, cap * sizeof(*list));
+            hs_version_t *nl = realloc(list, cap * sizeof(*list));
             if (nl == NULL) {
                 free(list);
                 index_cursor_close(cur);
@@ -104,7 +104,7 @@ static int copy_fd_to_fd(int in, int out)
     }
 }
 
-int cmd_show(int argc, char **argv, const rnt_config_t *cfg)
+int cmd_show(int argc, char **argv, const hs_config_t *cfg)
 {
     const char *out_path = NULL;
     static struct option opts[] = {
@@ -119,58 +119,58 @@ int cmd_show(int argc, char **argv, const rnt_config_t *cfg)
         case 'o': out_path = optarg; break;
         case 'h':
             fprintf(stderr,
-                "Usage: renatum show [--out FILE] <path> v<N>\n");
-            return RNT_EXIT_OK;
+                "Usage: hypersleep show [--out FILE] <path> v<N>\n");
+            return HS_EXIT_OK;
         default:
-            return RNT_EXIT_USAGE;
+            return HS_EXIT_USAGE;
         }
     }
     if (optind + 1 >= argc) {
-        fprintf(stderr, "renatum show: missing <path> v<N>\n");
-        return RNT_EXIT_USAGE;
+        fprintf(stderr, "hypersleep show: missing <path> v<N>\n");
+        return HS_EXIT_USAGE;
     }
     const char *path = argv[optind];
     int want_n = 0;
     if (parse_vn(argv[optind + 1], &want_n) < 0) {
         fprintf(stderr,
-                "renatum show: invalid version selector '%s' (expected vN)\n",
+                "hypersleep show: invalid version selector '%s' (expected vN)\n",
                 argv[optind + 1]);
-        return RNT_EXIT_USAGE;
+        return HS_EXIT_USAGE;
     }
 
-    rnt_index_t *idx = index_open(cfg->index_path, RNT_IDX_READ);
+    hs_index_t *idx = index_open(cfg->index_path, HS_IDX_READ);
     if (idx == NULL) {
-        fprintf(stderr, "renatum show: cannot open index\n");
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep show: cannot open index\n");
+        return HS_EXIT_ERROR;
     }
-    rnt_version_t v;
+    hs_version_t v;
     if (resolve_version(idx, path, want_n, &v) < 0) {
         if (errno == ENOENT) {
-            fprintf(stderr, "renatum show: no versions for %s\n", path);
+            fprintf(stderr, "hypersleep show: no versions for %s\n", path);
             index_close(idx);
-            return RNT_EXIT_NOTFOUND;
+            return HS_EXIT_NOTFOUND;
         }
         if (errno == ERANGE) {
-            fprintf(stderr, "renatum show: v%d out of range\n", want_n);
+            fprintf(stderr, "hypersleep show: v%d out of range\n", want_n);
             index_close(idx);
-            return RNT_EXIT_NOTFOUND;
+            return HS_EXIT_NOTFOUND;
         }
-        fprintf(stderr, "renatum show: lookup failed: %s\n", strerror(errno));
+        fprintf(stderr, "hypersleep show: lookup failed: %s\n", strerror(errno));
         index_close(idx);
-        return RNT_EXIT_ERROR;
+        return HS_EXIT_ERROR;
     }
     index_close(idx);
 
-    rnt_store_t *st = store_open(cfg->store_path);
+    hs_store_t *st = store_open(cfg->store_path);
     if (st == NULL) {
-        fprintf(stderr, "renatum show: cannot open store\n");
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep show: cannot open store\n");
+        return HS_EXIT_ERROR;
     }
     int blob_fd = store_open_blob(st, v.sha256);
     if (blob_fd < 0) {
-        fprintf(stderr, "renatum show: blob missing in CAS (corruption?)\n");
+        fprintf(stderr, "hypersleep show: blob missing in CAS (corruption?)\n");
         store_close(st);
-        return RNT_EXIT_CORRUPT;
+        return HS_EXIT_CORRUPT;
     }
 
     int out_fd = STDOUT_FILENO;
@@ -183,11 +183,11 @@ int cmd_show(int argc, char **argv, const rnt_config_t *cfg)
                       O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
                       0600);
         if (out_fd < 0) {
-            fprintf(stderr, "renatum show: cannot create %s: %s\n",
+            fprintf(stderr, "hypersleep show: cannot create %s: %s\n",
                     out_path, strerror(errno));
             close(blob_fd);
             store_close(st);
-            return errno == EEXIST ? RNT_EXIT_EXISTS : RNT_EXIT_ERROR;
+            return errno == EEXIST ? HS_EXIT_EXISTS : HS_EXIT_ERROR;
         }
     }
 
@@ -196,8 +196,8 @@ int cmd_show(int argc, char **argv, const rnt_config_t *cfg)
     if (out_fd != STDOUT_FILENO) close(out_fd);
     store_close(st);
     if (rc < 0) {
-        fprintf(stderr, "renatum show: copy failed: %s\n", strerror(errno));
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep show: copy failed: %s\n", strerror(errno));
+        return HS_EXIT_ERROR;
     }
-    return RNT_EXIT_OK;
+    return HS_EXIT_OK;
 }

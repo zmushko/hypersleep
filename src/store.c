@@ -21,7 +21,7 @@
  *
  * Compression: deferred to v1.1 per the project brief. store_put
  * always writes raw bytes; out_flags is set to 0. The schema reserves
- * RNT_FLAG_COMPRESSED for when zstd-framed blobs land.
+ * HS_FLAG_COMPRESSED for when zstd-framed blobs land.
  *
  * Concurrency: single writer (the daemon's snapshot pipeline);
  * multiple concurrent readers via store_open_blob / store_has.
@@ -29,7 +29,7 @@
 
 #include "store.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -45,11 +45,11 @@
 #include <unistd.h>
 
 #define COPY_BUFSZ        (64 * 1024)
-#define SHA_HEX_LEN       (RNT_SHA_LEN * 2)   /* 64 */
+#define SHA_HEX_LEN       (HS_SHA_LEN * 2)   /* 64 */
 #define SHARD_HEX_LEN     2
 #define REST_HEX_LEN      (SHA_HEX_LEN - SHARD_HEX_LEN)   /* 62 */
 
-struct rnt_store {
+struct hs_store {
     char    *root_path;
     int      root_fd;        /* O_DIRECTORY|O_RDONLY; used for fsync of root */
     unsigned blob_mode;
@@ -57,9 +57,9 @@ struct rnt_store {
 
 static const char g_hex[] = "0123456789abcdef";
 
-static void sha_to_hex(const uint8_t sha[RNT_SHA_LEN], char out[SHA_HEX_LEN + 1])
+static void sha_to_hex(const uint8_t sha[HS_SHA_LEN], char out[SHA_HEX_LEN + 1])
 {
-    for (int i = 0; i < RNT_SHA_LEN; i++) {
+    for (int i = 0; i < HS_SHA_LEN; i++) {
         out[i * 2]     = g_hex[(sha[i] >> 4) & 0xf];
         out[i * 2 + 1] = g_hex[ sha[i]       & 0xf];
     }
@@ -78,10 +78,10 @@ static int hex_pair_to_byte(char hi, char lo, uint8_t *out)
     return 0;
 }
 
-static int hex_to_sha(const char *hex, uint8_t out[RNT_SHA_LEN])
+static int hex_to_sha(const char *hex, uint8_t out[HS_SHA_LEN])
 {
     if (strlen(hex) != SHA_HEX_LEN) return -1;
-    for (int i = 0; i < RNT_SHA_LEN; i++) {
+    for (int i = 0; i < HS_SHA_LEN; i++) {
         if (hex_pair_to_byte(hex[i * 2], hex[i * 2 + 1], &out[i]) < 0) {
             return -1;
         }
@@ -92,8 +92,8 @@ static int hex_to_sha(const char *hex, uint8_t out[RNT_SHA_LEN])
 /* Build <root>/<shard>/<rest> into `out` (buffer of at least
  * strlen(root) + 1 + SHARD + 1 + REST + 1). Returns the offset of
  * the shard component for the caller's convenience. */
-static size_t blob_path(const rnt_store_t *s,
-                       const uint8_t sha[RNT_SHA_LEN],
+static size_t blob_path(const hs_store_t *s,
+                       const uint8_t sha[HS_SHA_LEN],
                        char *out, size_t cap)
 {
     char hex[SHA_HEX_LEN + 1];
@@ -104,8 +104,8 @@ static size_t blob_path(const rnt_store_t *s,
     return strlen(s->root_path) + 1;
 }
 
-static size_t shard_path(const rnt_store_t *s,
-                        const uint8_t sha[RNT_SHA_LEN],
+static size_t shard_path(const hs_store_t *s,
+                        const uint8_t sha[HS_SHA_LEN],
                         char *out, size_t cap)
 {
     char hex[SHA_HEX_LEN + 1];
@@ -119,7 +119,7 @@ static size_t shard_path(const rnt_store_t *s,
 /* open / close                                                       */
 /* ------------------------------------------------------------------ */
 
-rnt_store_t *store_open(const char *path)
+hs_store_t *store_open(const char *path)
 {
     if (path == NULL) {
         errno = EINVAL;
@@ -130,7 +130,7 @@ rnt_store_t *store_open(const char *path)
         return NULL;
     }
 
-    rnt_store_t *s = calloc(1, sizeof(*s));
+    hs_store_t *s = calloc(1, sizeof(*s));
     if (s == NULL) {
         log_error("store: out of memory");
         return NULL;
@@ -151,7 +151,7 @@ rnt_store_t *store_open(const char *path)
     return s;
 }
 
-void store_close(rnt_store_t *s)
+void store_close(hs_store_t *s)
 {
     if (s == NULL) return;
     if (s->root_fd >= 0) close(s->root_fd);
@@ -172,9 +172,9 @@ static int fsync_retry(int fd)
     }
 }
 
-int store_put(rnt_store_t *s,
+int store_put(hs_store_t *s,
               const char *src_path,
-              uint8_t out_sha[RNT_SHA_LEN],
+              uint8_t out_sha[HS_SHA_LEN],
               uint16_t *out_flags)
 {
     if (s == NULL || src_path == NULL || out_sha == NULL) {
@@ -250,10 +250,10 @@ int store_put(rnt_store_t *s,
 
     unsigned int digest_len = 0;
     if (EVP_DigestFinal_ex(md, out_sha, &digest_len) != 1
-        || digest_len != RNT_SHA_LEN)
+        || digest_len != HS_SHA_LEN)
     {
         log_error("store: EVP_DigestFinal_ex produced %u bytes (want %d)",
-                  digest_len, RNT_SHA_LEN);
+                  digest_len, HS_SHA_LEN);
         goto err;
     }
     EVP_MD_CTX_free(md);
@@ -338,7 +338,7 @@ err_nounlink:
 /* readers                                                            */
 /* ------------------------------------------------------------------ */
 
-int store_open_blob(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
+int store_open_blob(hs_store_t *s, const uint8_t sha[HS_SHA_LEN])
 {
     if (s == NULL || sha == NULL) {
         errno = EINVAL;
@@ -356,7 +356,7 @@ int store_open_blob(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
     return fd;
 }
 
-bool store_has(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
+bool store_has(hs_store_t *s, const uint8_t sha[HS_SHA_LEN])
 {
     if (s == NULL || sha == NULL) return false;
     char path[PATH_MAX];
@@ -365,7 +365,7 @@ bool store_has(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
     return lstat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
-int store_remove(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
+int store_remove(hs_store_t *s, const uint8_t sha[HS_SHA_LEN])
 {
     if (s == NULL || sha == NULL) {
         errno = EINVAL;
@@ -401,7 +401,7 @@ static bool is_hex_lower(const char *s, size_t want)
     return true;
 }
 
-int store_iterate(rnt_store_t *s, rnt_store_iter_fn fn, void *user)
+int store_iterate(hs_store_t *s, hs_store_iter_fn fn, void *user)
 {
     if (s == NULL || fn == NULL) {
         errno = EINVAL;
@@ -439,7 +439,7 @@ int store_iterate(rnt_store_t *s, rnt_store_iter_fn fn, void *user)
             memcpy(full_hex + 2, be->d_name, REST_HEX_LEN);
             full_hex[SHA_HEX_LEN] = '\0';
 
-            uint8_t sha[RNT_SHA_LEN];
+            uint8_t sha[HS_SHA_LEN];
             if (hex_to_sha(full_hex, sha) < 0) continue;
 
             char blobp[PATH_MAX];
@@ -461,7 +461,7 @@ int store_iterate(rnt_store_t *s, rnt_store_iter_fn fn, void *user)
     return abort_value;
 }
 
-int store_verify_blob(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
+int store_verify_blob(hs_store_t *s, const uint8_t sha[HS_SHA_LEN])
 {
     if (s == NULL || sha == NULL) {
         errno = EINVAL;
@@ -490,12 +490,12 @@ int store_verify_blob(rnt_store_t *s, const uint8_t sha[RNT_SHA_LEN])
     }
     close(fd);
 
-    uint8_t got[RNT_SHA_LEN];
+    uint8_t got[HS_SHA_LEN];
     unsigned int got_len = 0;
-    if (EVP_DigestFinal_ex(md, got, &got_len) != 1 || got_len != RNT_SHA_LEN) {
+    if (EVP_DigestFinal_ex(md, got, &got_len) != 1 || got_len != HS_SHA_LEN) {
         EVP_MD_CTX_free(md);
         return -1;
     }
     EVP_MD_CTX_free(md);
-    return memcmp(got, sha, RNT_SHA_LEN) == 0 ? 0 : 1;
+    return memcmp(got, sha, HS_SHA_LEN) == 0 ? 0 : 1;
 }

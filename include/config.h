@@ -4,34 +4,34 @@
  * The config file is line-oriented; see docs/config.md for the format.
  */
 
-#ifndef RENATUM_CONFIG_H
-#define RENATUM_CONFIG_H
+#ifndef HYPERSLEEP_CONFIG_H
+#define HYPERSLEEP_CONFIG_H
 
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <regex.h>
 
-enum rnt_log_level {
-    RNT_LOG_DEBUG,
-    RNT_LOG_INFO,
-    RNT_LOG_WARN,
-    RNT_LOG_ERROR,
+enum hs_log_level {
+    HS_LOG_DEBUG,
+    HS_LOG_INFO,
+    HS_LOG_WARN,
+    HS_LOG_ERROR,
 };
 
-enum rnt_priority {
-    RNT_PRIO_LOW,
-    RNT_PRIO_NORMAL,
-    RNT_PRIO_HIGH,
+enum hs_priority {
+    HS_PRIO_LOW,
+    HS_PRIO_NORMAL,
+    HS_PRIO_HIGH,
 };
 
-typedef struct rnt_watch {
+typedef struct hs_watch {
     char         *path;
     regex_t       exclude;
     bool          has_exclude;
     bool          recursive;
     uint64_t      retention_ns;     /* 0 = infinite */
-    enum rnt_priority priority;
+    enum hs_priority priority;
     bool          compress;
     /* Parser bookkeeping: true if the watch directive set the field
      * explicitly. Used by config_load to apply retention-default /
@@ -39,9 +39,9 @@ typedef struct rnt_watch {
      * order in the config file does not matter. */
     bool          set_retention;
     bool          set_compress;
-} rnt_watch_t;
+} hs_watch_t;
 
-typedef struct rnt_config {
+typedef struct hs_config {
     /* Paths */
     char *store_path;
     char *index_path;
@@ -49,10 +49,10 @@ typedef struct rnt_config {
     char *control_socket;
 
     /* Logging */
-    enum rnt_log_level log_level;
+    enum hs_log_level log_level;
 
     /* Watch list */
-    rnt_watch_t *watches;
+    hs_watch_t *watches;
     size_t       n_watches;
 
     /* Tuning */
@@ -69,13 +69,13 @@ typedef struct rnt_config {
     /* Retention defaults */
     uint64_t  retention_default_ns;
     bool      gc_after_prune;
-} rnt_config_t;
+} hs_config_t;
 
-rnt_config_t *config_load(const char *path);
-void          config_free(rnt_config_t *cfg);
+hs_config_t *config_load(const char *path);
+void          config_free(hs_config_t *cfg);
 
 /* Validation: check syntax, paths exist, regexes compile, etc.
  * Returns 0 ok, prints diagnostics on errors. */
-int config_validate(const rnt_config_t *cfg);
+int config_validate(const hs_config_t *cfg);
 
-#endif /* RENATUM_CONFIG_H */
+#endif /* HYPERSLEEP_CONFIG_H */

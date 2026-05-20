@@ -54,7 +54,7 @@
 
 struct watch_unit {
     Notify             *notify;
-    const rnt_watch_t  *cfg;     /* borrowed pointer into rnt_config_t */
+    const hs_watch_t  *cfg;     /* borrowed pointer into hs_config_t */
     int                 fd;      /* cached notifyFd(notify) */
 };
 
@@ -65,10 +65,10 @@ struct ext_attachment {
     void  *user;
 };
 
-struct rnt_watcher {
-    const rnt_config_t        *cfg;
-    rnt_snapshot_t            *snapshot;
-    rnt_debounce_t            *debouncer;
+struct hs_watcher {
+    const hs_config_t        *cfg;
+    hs_snapshot_t            *snapshot;
+    hs_debounce_t            *debouncer;
     struct watch_unit         *units;
     size_t                     n_units;
     int                        epfd;
@@ -83,7 +83,7 @@ struct rnt_watcher {
 static void dispatch(const char *path, uint32_t mask, uint32_t cookie,
                      void *user)
 {
-    rnt_watcher_t *w = user;
+    hs_watcher_t *w = user;
     /* snapshot_handle logs its own specific failure; we choose to
      * keep running rather than abort the daemon on a single bad
      * capture. */
@@ -103,7 +103,7 @@ static int epoll_add(int epfd, int fd, void *ptr)
     return epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev);
 }
 
-static int install_one_watch(rnt_watcher_t *w, const rnt_watch_t *spec)
+static int install_one_watch(hs_watcher_t *w, const hs_watch_t *spec)
 {
     /* librnotify gets NULL as the exclude regex; we re-filter the
      * full path ourselves in drain_unit. */
@@ -142,8 +142,8 @@ static int install_one_watch(rnt_watcher_t *w, const rnt_watch_t *spec)
     return 0;
 }
 
-rnt_watcher_t *watcher_create(const rnt_config_t *cfg,
-                              rnt_snapshot_t *snapshot,
+hs_watcher_t *watcher_create(const hs_config_t *cfg,
+                              hs_snapshot_t *snapshot,
                               volatile sig_atomic_t *stop_flag)
 {
     if (cfg == NULL || snapshot == NULL || stop_flag == NULL) {
@@ -156,7 +156,7 @@ rnt_watcher_t *watcher_create(const rnt_config_t *cfg,
         return NULL;
     }
 
-    rnt_watcher_t *w = calloc(1, sizeof(*w));
+    hs_watcher_t *w = calloc(1, sizeof(*w));
     if (w == NULL) return NULL;
     w->cfg       = cfg;
     w->snapshot  = snapshot;
@@ -191,7 +191,7 @@ err:
     return NULL;
 }
 
-void watcher_destroy(rnt_watcher_t *w)
+void watcher_destroy(hs_watcher_t *w)
 {
     if (w == NULL) return;
     if (w->debouncer) debounce_destroy(w->debouncer);
@@ -209,7 +209,7 @@ void watcher_destroy(rnt_watcher_t *w)
 /* event drain                                                        */
 /* ------------------------------------------------------------------ */
 
-static void drain_unit(rnt_watcher_t *w, struct watch_unit *u)
+static void drain_unit(hs_watcher_t *w, struct watch_unit *u)
 {
     for (int i = 0; i < DRAIN_BATCH_MAX; i++) {
         char    *path   = NULL;
@@ -263,7 +263,7 @@ static void drain_unit(rnt_watcher_t *w, struct watch_unit *u)
 /* event loop                                                         */
 /* ------------------------------------------------------------------ */
 
-int watcher_run(rnt_watcher_t *w)
+int watcher_run(hs_watcher_t *w)
 {
     if (w == NULL) {
         errno = EINVAL;
@@ -309,8 +309,8 @@ int watcher_run(rnt_watcher_t *w)
 /* control-socket entry point                                         */
 /* ------------------------------------------------------------------ */
 
-int watcher_force_snapshot(rnt_watcher_t *w, const char *path,
-                           uint8_t out_sha[RNT_SHA_LEN])
+int watcher_force_snapshot(hs_watcher_t *w, const char *path,
+                           uint8_t out_sha[HS_SHA_LEN])
 {
     if (w == NULL || path == NULL || out_sha == NULL) {
         errno = EINVAL;
@@ -319,7 +319,7 @@ int watcher_force_snapshot(rnt_watcher_t *w, const char *path,
     return snapshot_force(w->snapshot, path, out_sha);
 }
 
-int watcher_attach_fd(rnt_watcher_t *w, int fd,
+int watcher_attach_fd(hs_watcher_t *w, int fd,
                       void (*fn)(void *user), void *user)
 {
     if (w == NULL || fn == NULL || fd < 0) {

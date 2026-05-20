@@ -17,7 +17,7 @@
 
 #include "restore.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 #include "store.h"
 
 #include <errno.h>
@@ -40,8 +40,8 @@ static int fsync_retry(int fd)
     }
 }
 
-int restore_to(rnt_store_t *store,
-               const rnt_version_t *v,
+int restore_to(hs_store_t *store,
+               const hs_version_t *v,
                const char *dst,
                bool preserve_mode)
 {

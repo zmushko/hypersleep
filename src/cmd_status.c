@@ -1,5 +1,5 @@
 /*
- * cmd_status.c — renatum status
+ * cmd_status.c — hypersleep status
  *
  * v0.1.0 scope: daemon pid (via flock check on the lock file),
  * store size + blob count, watched-path list. The fancier numbers
@@ -11,7 +11,7 @@
 
 #include "config.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 #include "store.h"
 
 #include <errno.h>
@@ -28,7 +28,7 @@ struct blob_acc {
     uint64_t bytes;
 };
 
-static int blob_count_cb(const uint8_t sha[RNT_SHA_LEN], off_t size, void *u)
+static int blob_count_cb(const uint8_t sha[HS_SHA_LEN], off_t size, void *u)
 {
     (void)sha;
     struct blob_acc *a = u;
@@ -66,16 +66,16 @@ static int daemon_pid(const char *lock_path)
     return 1;
 }
 
-int cmd_status(int argc, char **argv, const rnt_config_t *cfg)
+int cmd_status(int argc, char **argv, const hs_config_t *cfg)
 {
     (void)argc; (void)argv;
-    if (cfg == NULL) return RNT_EXIT_ERROR;
+    if (cfg == NULL) return HS_EXIT_ERROR;
 
-    int pid = daemon_pid("/var/lib/renatum/lock");
+    int pid = daemon_pid("/var/lib/hypersleep/lock");
     if (pid > 0) {
-        printf("renatumd: running\n");
+        printf("hypersleepd: running\n");
     } else {
-        printf("renatumd: not running (or lock file inaccessible)\n");
+        printf("hypersleepd: not running (or lock file inaccessible)\n");
     }
     printf("store:    %s\n", cfg->store_path);
     printf("index:    %s\n", cfg->index_path);
@@ -84,7 +84,7 @@ int cmd_status(int argc, char **argv, const rnt_config_t *cfg)
      * this is fast; on a 100k-blob store it takes a few hundred ms
      * of opendir/lstat, which is acceptable for an operator-typed
      * status command. */
-    rnt_store_t *s = store_open(cfg->store_path);
+    hs_store_t *s = store_open(cfg->store_path);
     if (s != NULL) {
         struct blob_acc acc = { 0, 0 };
         if (store_iterate(s, blob_count_cb, &acc) == 0) {
@@ -103,5 +103,5 @@ int cmd_status(int argc, char **argv, const rnt_config_t *cfg)
                cfg->watches[i].compress    ? "  (compress)"    : "");
     }
 
-    return RNT_EXIT_OK;
+    return HS_EXIT_OK;
 }

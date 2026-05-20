@@ -6,20 +6,20 @@
  * the CAS, checks each blob's refcount in the index, and unlinks
  * the orphans.
  *
- * Race note: if `renatum prune` runs while renatumd is writing
+ * Race note: if `hypersleep prune` runs while hypersleepd is writing
  * (single-writer LMDB), the writer-lock contention serialises us.
  * A blob added by the daemon between our refcount check and our
  * store_remove call would be erroneously deleted. The window is
  * narrow but real; v0.1.0+ should harden by either pausing the
  * daemon via SIGSTOP for the sweep, or routing prune through the
  * control socket so the daemon does it inline. For now operators
- * are advised to stop renatumd before pruning.
+ * are advised to stop hypersleepd before pruning.
  */
 
 #include "retention.h"
 #include "index.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 #include "store.h"
 
 #include <errno.h>
@@ -27,12 +27,12 @@
 #include <stdint.h>
 
 struct sweep_state {
-    rnt_index_t *idx;
-    rnt_store_t *store;
+    hs_index_t *idx;
+    hs_store_t *store;
     size_t       removed;
 };
 
-static int sweep_cb(const uint8_t sha[RNT_SHA_LEN], off_t size, void *user)
+static int sweep_cb(const uint8_t sha[HS_SHA_LEN], off_t size, void *user)
 {
     (void)size;
     struct sweep_state *s = user;
@@ -49,7 +49,7 @@ static int sweep_cb(const uint8_t sha[RNT_SHA_LEN], off_t size, void *user)
     return 0;
 }
 
-int retention_sweep_orphans(rnt_index_t *idx, rnt_store_t *store,
+int retention_sweep_orphans(hs_index_t *idx, hs_store_t *store,
                             size_t *out_removed)
 {
     if (idx == NULL || store == NULL) {

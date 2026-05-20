@@ -7,35 +7,35 @@
  * single capture for the file's stable state.
  */
 
-#ifndef RENATUM_DEBOUNCE_H
-#define RENATUM_DEBOUNCE_H
+#ifndef HYPERSLEEP_DEBOUNCE_H
+#define HYPERSLEEP_DEBOUNCE_H
 
 #include <stdint.h>
 
-typedef struct rnt_debounce rnt_debounce_t;
+typedef struct hs_debounce hs_debounce_t;
 
-typedef void (*rnt_debounce_cb)(const char *path,
+typedef void (*hs_debounce_cb)(const char *path,
                                 uint32_t accumulated_mask,
                                 uint32_t cookie,
                                 void *user);
 
-rnt_debounce_t *debounce_create(unsigned window_ms,
-                                rnt_debounce_cb cb,
+hs_debounce_t *debounce_create(unsigned window_ms,
+                                hs_debounce_cb cb,
                                 void *user);
-void            debounce_destroy(rnt_debounce_t *d);
+void            debounce_destroy(hs_debounce_t *d);
 
 /* Push a new event. Resets the timer for `path`. */
-int debounce_push(rnt_debounce_t *d,
+int debounce_push(hs_debounce_t *d,
                   const char *path,
                   uint32_t mask,
                   uint32_t cookie);
 
 /* Called periodically (e.g. on every watcher poll timeout) to flush
  * entries whose quiet window has elapsed. */
-void debounce_tick(rnt_debounce_t *d);
+void debounce_tick(hs_debounce_t *d);
 
 /* Drain everything synchronously, regardless of timer state. Used on
  * shutdown. */
-void debounce_flush_all(rnt_debounce_t *d);
+void debounce_flush_all(hs_debounce_t *d);
 
-#endif /* RENATUM_DEBOUNCE_H */
+#endif /* HYPERSLEEP_DEBOUNCE_H */

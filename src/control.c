@@ -25,7 +25,7 @@
 
 #include "control.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 #include "watcher.h"
 
 #include <errno.h>
@@ -55,10 +55,10 @@
 
 #define CONTROL_MAXMSG 4096
 
-struct rnt_control {
+struct hs_control {
     int             fd;
     char           *socket_path;
-    rnt_watcher_t  *watcher;
+    hs_watcher_t  *watcher;
 };
 
 static void send_reply(int fd, const struct sockaddr *peer, socklen_t plen,
@@ -85,7 +85,7 @@ static void send_err(int fd, const struct sockaddr *peer, socklen_t plen,
     send_reply(fd, peer, plen, buf);
 }
 
-static void handle_snapshot(struct rnt_control *c,
+static void handle_snapshot(struct hs_control *c,
                             const struct sockaddr *peer, socklen_t plen,
                             const char *path)
 {
@@ -95,7 +95,7 @@ static void handle_snapshot(struct rnt_control *c,
         return;
     }
 
-    uint8_t sha[RNT_SHA_LEN];
+    uint8_t sha[HS_SHA_LEN];
     if (watcher_force_snapshot(c->watcher, path, sha) < 0) {
         char err[256];
         snprintf(err, sizeof(err),
@@ -104,11 +104,11 @@ static void handle_snapshot(struct rnt_control *c,
         return;
     }
 
-    char reply[3 + 1 + RNT_SHA_LEN * 2 + 2];
+    char reply[3 + 1 + HS_SHA_LEN * 2 + 2];
     char *p = reply;
     memcpy(p, "OK ", 3); p += 3;
     static const char hex[] = "0123456789abcdef";
-    for (int i = 0; i < RNT_SHA_LEN; i++) {
+    for (int i = 0; i < HS_SHA_LEN; i++) {
         *p++ = hex[(sha[i] >> 4) & 0xf];
         *p++ = hex[ sha[i]       & 0xf];
     }
@@ -119,7 +119,7 @@ static void handle_snapshot(struct rnt_control *c,
 
 static void dispatch(void *user)
 {
-    struct rnt_control *c = user;
+    struct hs_control *c = user;
 
     char buf[CONTROL_MAXMSG];
     struct sockaddr_un peer;
@@ -164,7 +164,7 @@ static void dispatch(void *user)
 /* ------------------------------------------------------------------ */
 
 /* Best-effort mkdir of the parent directory of socket_path. The
- * systemd unit usually pre-creates /run/renatum, but development
+ * systemd unit usually pre-creates /run/hypersleep, but development
  * runs benefit from a fallback. */
 static void ensure_parent_dir(const char *socket_path)
 {
@@ -179,7 +179,7 @@ static void ensure_parent_dir(const char *socket_path)
     free(dup);
 }
 
-rnt_control_t *control_open(const char *socket_path, rnt_watcher_t *watcher)
+hs_control_t *control_open(const char *socket_path, hs_watcher_t *watcher)
 {
     if (socket_path == NULL || watcher == NULL) {
         errno = EINVAL;
@@ -191,7 +191,7 @@ rnt_control_t *control_open(const char *socket_path, rnt_watcher_t *watcher)
         return NULL;
     }
 
-    rnt_control_t *c = calloc(1, sizeof(*c));
+    hs_control_t *c = calloc(1, sizeof(*c));
     if (c == NULL) return NULL;
     c->fd = -1;
     c->watcher = watcher;
@@ -224,8 +224,8 @@ rnt_control_t *control_open(const char *socket_path, rnt_watcher_t *watcher)
         log_error("control: bind(%s): %s", socket_path, strerror(errno));
         goto err;
     }
-    /* The socket needs to be reachable by the renatum CLI run by
-     * users in the renatum group. The systemd unit can override
+    /* The socket needs to be reachable by the hypersleep CLI run by
+     * users in the hypersleep group. The systemd unit can override
      * with a tighter mode; this is the sensible default. */
     if (chmod(socket_path, 0660) < 0) {
         log_warn("control: chmod(%s): %s", socket_path, strerror(errno));
@@ -247,7 +247,7 @@ err:
     return NULL;
 }
 
-void control_close(rnt_control_t *c)
+void control_close(hs_control_t *c)
 {
     if (c == NULL) return;
     if (c->fd >= 0) close(c->fd);

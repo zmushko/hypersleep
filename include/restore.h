@@ -1,17 +1,17 @@
 /*
  * restore.h — CAS blob -> filesystem extraction primitives.
  *
- * Shared between `renatum restore` (single file) and the upcoming
- * `renatum restore-tree` (subtree). The CLI argument plumbing
+ * Shared between `hypersleep restore` (single file) and the upcoming
+ * `hypersleep restore-tree` (subtree). The CLI argument plumbing
  * lives in cmd_restore.c / cmd_restore_tree.c; the actual write
  * mechanics live in restore.c so both subcommands share the
  * fsync discipline and metadata-application logic.
  */
 
-#ifndef RENATUM_RESTORE_H
-#define RENATUM_RESTORE_H
+#ifndef HYPERSLEEP_RESTORE_H
+#define HYPERSLEEP_RESTORE_H
 
-#include "renatum.h"
+#include "hypersleep.h"
 #include "store.h"
 
 #include <stdbool.h>
@@ -28,9 +28,9 @@
  *
  * Returns 0 on success, -1 on error (errno set). On error the
  * temp file is unlinked. */
-int restore_to(rnt_store_t *store,
-               const rnt_version_t *v,
+int restore_to(hs_store_t *store,
+               const hs_version_t *v,
                const char *dst,
                bool preserve_mode);
 
-#endif /* RENATUM_RESTORE_H */
+#endif /* HYPERSLEEP_RESTORE_H */

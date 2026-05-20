@@ -1,5 +1,5 @@
 /*
- * main.c — renatumd entry point
+ * main.c — hypersleepd entry point
  *
  * Apache-2.0
  *
@@ -8,7 +8,7 @@
  *   2. Load and validate config
  *   3. Daemonize unless --foreground
  *   4. Install signal handlers (SIGTERM, SIGINT, SIGHUP)
- *   5. Acquire flock on /var/lib/renatum/lock
+ *   5. Acquire flock on /var/lib/hypersleep/lock
  *   6. Open store and index
  *   7. Create snapshot pipeline, debouncer, watcher
  *   8. Run the event loop
@@ -22,7 +22,7 @@
 #include "snapshot.h"
 #include "store.h"
 #include "index.h"
-#include "renatum.h"
+#include "hypersleep.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -59,7 +59,7 @@ static int acquire_lock(const char *path) {
 }
 
 int main(int argc, char **argv) {
-    const char *config_path = "/etc/renatum/renatum.conf";
+    const char *config_path = "/etc/hypersleep/hypersleep.conf";
     bool foreground = false;
 
     static struct option opts[] = {
@@ -76,39 +76,39 @@ int main(int argc, char **argv) {
         case 'c': config_path = optarg; break;
         case 'f': foreground = true; break;
         case 'V':
-            printf("renatumd %d.%d.%d\n",
-                   RENATUM_VERSION_MAJOR,
-                   RENATUM_VERSION_MINOR,
-                   RENATUM_VERSION_PATCH);
+            printf("hypersleepd %d.%d.%d\n",
+                   HYPERSLEEP_VERSION_MAJOR,
+                   HYPERSLEEP_VERSION_MINOR,
+                   HYPERSLEEP_VERSION_PATCH);
             return 0;
         case 'h':
             usage(argv[0]);
             return 0;
         default:
             usage(argv[0]);
-            return RNT_EXIT_USAGE;
+            return HS_EXIT_USAGE;
         }
     }
 
-    rnt_config_t *cfg = config_load(config_path);
+    hs_config_t *cfg = config_load(config_path);
     if (!cfg) {
-        fprintf(stderr, "renatumd: failed to load config %s\n", config_path);
-        return RNT_EXIT_USAGE;
+        fprintf(stderr, "hypersleepd: failed to load config %s\n", config_path);
+        return HS_EXIT_USAGE;
     }
     if (config_validate(cfg) != 0) {
-        fprintf(stderr, "renatumd: invalid config\n");
+        fprintf(stderr, "hypersleepd: invalid config\n");
         config_free(cfg);
-        return RNT_EXIT_USAGE;
+        return HS_EXIT_USAGE;
     }
 
     log_init(cfg, foreground);
 
     /* TODO: daemonize() if !foreground */
 
-    if (acquire_lock("/var/lib/renatum/lock") != 0) {
-        log_error("another renatumd is already running");
+    if (acquire_lock("/var/lib/hypersleep/lock") != 0) {
+        log_error("another hypersleepd is already running");
         config_free(cfg);
-        return RNT_EXIT_ERROR;
+        return HS_EXIT_ERROR;
     }
 
     struct sigaction sa = { 0 };
@@ -118,10 +118,10 @@ int main(int argc, char **argv) {
     sa.sa_handler = on_hup;
     sigaction(SIGHUP,  &sa, NULL);
 
-    rnt_store_t *store = store_open(cfg->store_path);
+    hs_store_t *store = store_open(cfg->store_path);
     if (!store) { log_error("store_open failed"); goto err_cfg; }
 
-    rnt_index_t *index = index_open(cfg->index_path, RNT_IDX_WRITE);
+    hs_index_t *index = index_open(cfg->index_path, HS_IDX_WRITE);
     if (!index) { log_error("index_open failed"); goto err_store; }
 
     if (index_schema_check(index) < 0) {
@@ -129,28 +129,28 @@ int main(int argc, char **argv) {
         goto err_index;
     }
 
-    rnt_snapshot_t *snapshot = snapshot_create(store, index);
+    hs_snapshot_t *snapshot = snapshot_create(store, index);
     if (!snapshot) { log_error("snapshot_create failed"); goto err_index; }
 
-    rnt_watcher_t *watcher = watcher_create(cfg, snapshot, &g_running);
+    hs_watcher_t *watcher = watcher_create(cfg, snapshot, &g_running);
     if (!watcher) { log_error("watcher_create failed"); goto err_snap; }
 
-    /* Control socket is optional — if /run/renatum/ is unwritable
+    /* Control socket is optional — if /run/hypersleep/ is unwritable
      * (no permissions, no systemd-managed runtime dir), log and
      * continue without the pre-snapshot rendezvous. The CLI falls
      * back to its --no-pre-snapshot behaviour with a warning. */
-    rnt_control_t *control = control_open(cfg->control_socket, watcher);
+    hs_control_t *control = control_open(cfg->control_socket, watcher);
     if (!control) {
-        log_warn("renatumd: control socket disabled (%s)", strerror(errno));
+        log_warn("hypersleepd: control socket disabled (%s)", strerror(errno));
     }
 
-    log_info("renatumd %d.%d.%d started, watching %zu paths",
-             RENATUM_VERSION_MAJOR, RENATUM_VERSION_MINOR,
-             RENATUM_VERSION_PATCH, cfg->n_watches);
+    log_info("hypersleepd %d.%d.%d started, watching %zu paths",
+             HYPERSLEEP_VERSION_MAJOR, HYPERSLEEP_VERSION_MINOR,
+             HYPERSLEEP_VERSION_PATCH, cfg->n_watches);
 
     int rc = watcher_run(watcher);
 
-    log_info("renatumd shutting down");
+    log_info("hypersleepd shutting down");
 
     if (control) control_close(control);
     watcher_destroy(watcher);
@@ -165,5 +165,5 @@ err_snap:  snapshot_destroy(snapshot);
 err_index: index_close(index);
 err_store: store_close(store);
 err_cfg:   config_free(cfg);
-    return RNT_EXIT_ERROR;
+    return HS_EXIT_ERROR;
 }

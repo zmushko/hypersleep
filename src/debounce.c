@@ -42,9 +42,9 @@ struct deb_entry {
     struct deb_entry  *next;
 };
 
-struct rnt_debounce {
+struct hs_debounce {
     uint64_t            window_ns;
-    rnt_debounce_cb     cb;
+    hs_debounce_cb     cb;
     void               *user;
     struct deb_entry   *head;
 };
@@ -56,15 +56,15 @@ static uint64_t mono_ns(void)
     return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
-rnt_debounce_t *debounce_create(unsigned window_ms,
-                                rnt_debounce_cb cb,
+hs_debounce_t *debounce_create(unsigned window_ms,
+                                hs_debounce_cb cb,
                                 void *user)
 {
     if (cb == NULL) {
         errno = EINVAL;
         return NULL;
     }
-    rnt_debounce_t *d = calloc(1, sizeof(*d));
+    hs_debounce_t *d = calloc(1, sizeof(*d));
     if (d == NULL) return NULL;
     d->window_ns = (uint64_t)window_ms * 1000000ULL;
     d->cb        = cb;
@@ -79,7 +79,7 @@ static void free_entry(struct deb_entry *e)
     free(e);
 }
 
-void debounce_destroy(rnt_debounce_t *d)
+void debounce_destroy(hs_debounce_t *d)
 {
     if (d == NULL) return;
     struct deb_entry *e = d->head;
@@ -91,7 +91,7 @@ void debounce_destroy(rnt_debounce_t *d)
     free(d);
 }
 
-int debounce_push(rnt_debounce_t *d, const char *path,
+int debounce_push(hs_debounce_t *d, const char *path,
                   uint32_t mask, uint32_t cookie)
 {
     if (d == NULL || path == NULL) {
@@ -131,7 +131,7 @@ int debounce_push(rnt_debounce_t *d, const char *path,
  * private list the caller will walk + free. Splitting the walk from
  * the dispatch keeps the public list safe even if the user callback
  * pushes new events for the same path. */
-static struct deb_entry *take_due(rnt_debounce_t *d, uint64_t now)
+static struct deb_entry *take_due(hs_debounce_t *d, uint64_t now)
 {
     struct deb_entry *due = NULL;
     struct deb_entry **link = &d->head;
@@ -148,7 +148,7 @@ static struct deb_entry *take_due(rnt_debounce_t *d, uint64_t now)
     return due;
 }
 
-void debounce_tick(rnt_debounce_t *d)
+void debounce_tick(hs_debounce_t *d)
 {
     if (d == NULL) return;
     uint64_t now = mono_ns();
@@ -161,7 +161,7 @@ void debounce_tick(rnt_debounce_t *d)
     }
 }
 
-void debounce_flush_all(rnt_debounce_t *d)
+void debounce_flush_all(hs_debounce_t *d)
 {
     if (d == NULL) return;
     struct deb_entry *e = d->head;

@@ -1,5 +1,5 @@
 /*
- * cmd_log.c — renatum log <path>
+ * cmd_log.c — hypersleep log <path>
  *
  * Lists captured versions of a path. Output is newest-first the way
  * `git log` shows commits, but the display rank vN counts from the
@@ -14,7 +14,7 @@
 #include "config.h"
 #include "index.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 
 #include <errno.h>
 #include <getopt.h>
@@ -66,7 +66,7 @@ static const char *event_label(uint32_t mask)
     return "?";
 }
 
-int cmd_log(int argc, char **argv, const rnt_config_t *cfg)
+int cmd_log(int argc, char **argv, const hs_config_t *cfg)
 {
     long limit = -1;
     static struct option opts[] = {
@@ -80,48 +80,48 @@ int cmd_log(int argc, char **argv, const rnt_config_t *cfg)
         switch (c) {
         case 'n': limit = strtol(optarg, NULL, 10); break;
         case 'h':
-            fprintf(stderr, "Usage: renatum log [--limit N] <path>\n");
-            return RNT_EXIT_OK;
+            fprintf(stderr, "Usage: hypersleep log [--limit N] <path>\n");
+            return HS_EXIT_OK;
         default:
-            return RNT_EXIT_USAGE;
+            return HS_EXIT_USAGE;
         }
     }
     if (optind >= argc) {
-        fprintf(stderr, "renatum log: missing <path>\n");
-        return RNT_EXIT_USAGE;
+        fprintf(stderr, "hypersleep log: missing <path>\n");
+        return HS_EXIT_USAGE;
     }
     const char *path = argv[optind];
 
-    rnt_index_t *idx = index_open(cfg->index_path, RNT_IDX_READ);
+    hs_index_t *idx = index_open(cfg->index_path, HS_IDX_READ);
     if (idx == NULL) {
-        fprintf(stderr, "renatum log: cannot open index\n");
-        return RNT_EXIT_ERROR;
+        fprintf(stderr, "hypersleep log: cannot open index\n");
+        return HS_EXIT_ERROR;
     }
 
     /* Collect versions into a heap-grown array so we can render
      * newest-first while iter walks oldest-first. */
     size_t cap = 16, n = 0;
-    rnt_version_t *list = malloc(cap * sizeof(*list));
-    if (list == NULL) { index_close(idx); return RNT_EXIT_ERROR; }
+    hs_version_t *list = malloc(cap * sizeof(*list));
+    if (list == NULL) { index_close(idx); return HS_EXIT_ERROR; }
 
-    rnt_index_cursor_t *cur = index_iter_path(idx, path);
+    hs_index_cursor_t *cur = index_iter_path(idx, path);
     if (cur == NULL) {
-        fprintf(stderr, "renatum log: cannot iterate %s\n", path);
+        fprintf(stderr, "hypersleep log: cannot iterate %s\n", path);
         free(list);
         index_close(idx);
-        return RNT_EXIT_ERROR;
+        return HS_EXIT_ERROR;
     }
 
-    rnt_version_t v;
+    hs_version_t v;
     while (index_cursor_next(cur, &v) == 0) {
         if (n == cap) {
             cap *= 2;
-            rnt_version_t *nl = realloc(list, cap * sizeof(*list));
+            hs_version_t *nl = realloc(list, cap * sizeof(*list));
             if (nl == NULL) {
                 index_cursor_close(cur);
                 free(list);
                 index_close(idx);
-                return RNT_EXIT_ERROR;
+                return HS_EXIT_ERROR;
             }
             list = nl;
         }
@@ -131,9 +131,9 @@ int cmd_log(int argc, char **argv, const rnt_config_t *cfg)
     index_close(idx);
 
     if (n == 0) {
-        fprintf(stderr, "renatum log: no versions for %s\n", path);
+        fprintf(stderr, "hypersleep log: no versions for %s\n", path);
         free(list);
-        return RNT_EXIT_NOTFOUND;
+        return HS_EXIT_NOTFOUND;
     }
 
     /* Display ranks: v1 = oldest, vN = newest. */
@@ -145,7 +145,7 @@ int cmd_log(int argc, char **argv, const rnt_config_t *cfg)
     printf("%-6s %-19s %-10s %-9s %s\n",
            "VER", "CAPTURED", "SIZE", "SHA", "EVENT");
     for (size_t i = 0; i < to_show; i++) {
-        const rnt_version_t *e = &list[n - 1 - i];
+        const hs_version_t *e = &list[n - 1 - i];
         char ts[24];  format_ts(e->captured_ns, ts, sizeof(ts));
         char sz[16];  format_bytes(e->entry.size, sz, sizeof(sz));
         char sha[9];
@@ -156,5 +156,5 @@ int cmd_log(int argc, char **argv, const rnt_config_t *cfg)
     }
 
     free(list);
-    return RNT_EXIT_OK;
+    return HS_EXIT_OK;
 }

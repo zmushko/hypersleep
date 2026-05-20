@@ -13,19 +13,19 @@
  * state into the index even if the daemon was lagging on events.
  */
 
-#ifndef RENATUM_CONTROL_H
-#define RENATUM_CONTROL_H
+#ifndef HYPERSLEEP_CONTROL_H
+#define HYPERSLEEP_CONTROL_H
 
 #include "watcher.h"
 
-typedef struct rnt_control rnt_control_t;
+typedef struct hs_control hs_control_t;
 
 /* Create the control socket, bind to socket_path, and attach it to
  * the watcher's epoll loop. Returns NULL with errno set on failure
  * (already logged). */
-rnt_control_t *control_open(const char *socket_path,
-                            rnt_watcher_t *watcher);
+hs_control_t *control_open(const char *socket_path,
+                            hs_watcher_t *watcher);
 
-void control_close(rnt_control_t *c);
+void control_close(hs_control_t *c);
 
-#endif /* RENATUM_CONTROL_H */
+#endif /* HYPERSLEEP_CONTROL_H */

@@ -1,9 +1,9 @@
 /*
  * log.c — process-wide logging shim with three backends.
  *
- *   stderr   — foreground (CLI tools, `renatumd -f`); the default
+ *   stderr   — foreground (CLI tools, `hypersleepd -f`); the default
  *              when log_init has not been called yet.
- *   file     — when the daemon has `log <path>` in renatum.conf.
+ *   file     — when the daemon has `log <path>` in hypersleep.conf.
  *   syslog   — daemon fallback when no log path is configured (or
  *              the configured file cannot be opened).
  *
@@ -47,36 +47,36 @@ enum log_backend {
  * load) where we have nothing better. */
 static struct {
     enum log_backend     backend;
-    enum rnt_log_level   level;
+    enum hs_log_level   level;
     FILE                *file;
     bool                 syslog_open;
 } g;
 
-static const char *level_name(enum rnt_log_level lvl)
+static const char *level_name(enum hs_log_level lvl)
 {
     switch (lvl) {
-        case RNT_LOG_DEBUG: return "DEBUG";
-        case RNT_LOG_INFO:  return "INFO ";
-        case RNT_LOG_WARN:  return "WARN ";
-        case RNT_LOG_ERROR: return "ERROR";
+        case HS_LOG_DEBUG: return "DEBUG";
+        case HS_LOG_INFO:  return "INFO ";
+        case HS_LOG_WARN:  return "WARN ";
+        case HS_LOG_ERROR: return "ERROR";
     }
     return "?    ";
 }
 
-static int level_to_syslog(enum rnt_log_level lvl)
+static int level_to_syslog(enum hs_log_level lvl)
 {
     switch (lvl) {
-        case RNT_LOG_DEBUG: return LOG_DEBUG;
-        case RNT_LOG_INFO:  return LOG_INFO;
-        case RNT_LOG_WARN:  return LOG_WARNING;
-        case RNT_LOG_ERROR: return LOG_ERR;
+        case HS_LOG_DEBUG: return LOG_DEBUG;
+        case HS_LOG_INFO:  return LOG_INFO;
+        case HS_LOG_WARN:  return LOG_WARNING;
+        case HS_LOG_ERROR: return LOG_ERR;
     }
     return LOG_INFO;
 }
 
-void log_init(const rnt_config_t *cfg, bool foreground)
+void log_init(const hs_config_t *cfg, bool foreground)
 {
-    g.level = cfg ? cfg->log_level : RNT_LOG_INFO;
+    g.level = cfg ? cfg->log_level : HS_LOG_INFO;
 
     if (foreground) {
         g.backend = LOG_BACKEND_STDERR;
@@ -107,7 +107,7 @@ void log_init(const rnt_config_t *cfg, bool foreground)
          * still recorded somewhere reachable */
     }
 
-    openlog("renatumd", LOG_PID | LOG_CONS, LOG_DAEMON);
+    openlog("hypersleepd", LOG_PID | LOG_CONS, LOG_DAEMON);
     g.backend = LOG_BACKEND_SYSLOG;
     g.syslog_open = true;
 
@@ -136,7 +136,7 @@ void log_close(void)
     g.backend = LOG_BACKEND_STDERR;
 }
 
-void log_msg(enum rnt_log_level lvl, const char *fmt, ...)
+void log_msg(enum hs_log_level lvl, const char *fmt, ...)
 {
     if (lvl < g.level) {
         return;

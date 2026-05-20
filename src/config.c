@@ -1,5 +1,5 @@
 /*
- * config.c — load and validate /etc/renatum/renatum.conf.
+ * config.c — load and validate /etc/hypersleep/hypersleep.conf.
  *
  * The format is line-oriented (docs/config.md):
  *
@@ -20,8 +20,8 @@
  * in one pass. config_load returns NULL if any error was reported.
  *
  * config_validate runs orthogonal semantic checks (paths exist,
- * etc.) and is meant to be called separately from `renatum config
- * test` and from renatumd startup.
+ * etc.) and is meant to be called separately from `hypersleep config
+ * test` and from hypersleepd startup.
  */
 
 #include "config.h"
@@ -59,13 +59,13 @@ static char *xstrdup(const char *s)
 /* defaults                                                           */
 /* ------------------------------------------------------------------ */
 
-static int apply_defaults(rnt_config_t *cfg)
+static int apply_defaults(hs_config_t *cfg)
 {
-    cfg->store_path     = xstrdup("/var/lib/renatum/store");
-    cfg->index_path     = xstrdup("/var/lib/renatum/index");
+    cfg->store_path     = xstrdup("/var/lib/hypersleep/store");
+    cfg->index_path     = xstrdup("/var/lib/hypersleep/index");
     cfg->log_path       = NULL;
-    cfg->control_socket = xstrdup("/run/renatum/control.sock");
-    cfg->log_level      = RNT_LOG_INFO;
+    cfg->control_socket = xstrdup("/run/hypersleep/control.sock");
+    cfg->log_level      = HS_LOG_INFO;
     cfg->inotify_max_watches_warn = 524288;
     cfg->debounce_ms    = 1500;
     cfg->queue_poll_ms  = 500;
@@ -149,16 +149,16 @@ static int parse_bool(const char *val, bool *out,
     return -1;
 }
 
-static int parse_log_level(const char *val, enum rnt_log_level *out, int lineno)
+static int parse_log_level(const char *val, enum hs_log_level *out, int lineno)
 {
-    if (!strcasecmp(val, "debug")) { *out = RNT_LOG_DEBUG; return 0; }
-    if (!strcasecmp(val, "info"))  { *out = RNT_LOG_INFO;  return 0; }
+    if (!strcasecmp(val, "debug")) { *out = HS_LOG_DEBUG; return 0; }
+    if (!strcasecmp(val, "info"))  { *out = HS_LOG_INFO;  return 0; }
     if (!strcasecmp(val, "warn") || !strcasecmp(val, "warning")) {
-        *out = RNT_LOG_WARN;
+        *out = HS_LOG_WARN;
         return 0;
     }
     if (!strcasecmp(val, "error") || !strcasecmp(val, "err")) {
-        *out = RNT_LOG_ERROR;
+        *out = HS_LOG_ERROR;
         return 0;
     }
     log_error("line %d: log-level must be debug|info|warn|error, got '%s'",
@@ -176,11 +176,11 @@ static int parse_fsync_mode(const char *val, int *out, int lineno)
     return -1;
 }
 
-static int parse_priority(const char *val, enum rnt_priority *out, int lineno)
+static int parse_priority(const char *val, enum hs_priority *out, int lineno)
 {
-    if (!strcasecmp(val, "low"))    { *out = RNT_PRIO_LOW;    return 0; }
-    if (!strcasecmp(val, "normal")) { *out = RNT_PRIO_NORMAL; return 0; }
-    if (!strcasecmp(val, "high"))   { *out = RNT_PRIO_HIGH;   return 0; }
+    if (!strcasecmp(val, "low"))    { *out = HS_PRIO_LOW;    return 0; }
+    if (!strcasecmp(val, "normal")) { *out = HS_PRIO_NORMAL; return 0; }
+    if (!strcasecmp(val, "high"))   { *out = HS_PRIO_HIGH;   return 0; }
     log_error("line %d: priority must be low|normal|high, got '%s'",
               lineno, val);
     return -1;
@@ -257,10 +257,10 @@ static int tokenize(char *line, char *tokens[], int max, int lineno)
 /* watch options                                                      */
 /* ------------------------------------------------------------------ */
 
-static int append_watch(rnt_config_t *cfg, rnt_watch_t *w)
+static int append_watch(hs_config_t *cfg, hs_watch_t *w)
 {
     size_t newn = cfg->n_watches + 1;
-    rnt_watch_t *ext = realloc(cfg->watches, newn * sizeof(*ext));
+    hs_watch_t *ext = realloc(cfg->watches, newn * sizeof(*ext));
     if (ext == NULL) {
         log_error("out of memory growing watch list");
         return -1;
@@ -273,7 +273,7 @@ static int append_watch(rnt_config_t *cfg, rnt_watch_t *w)
 
 /* Parse a single key=value option for a watch directive. Returns 0
  * on success, -1 on failure (already logged). */
-static int parse_watch_option(rnt_watch_t *w, const rnt_config_t *cfg,
+static int parse_watch_option(hs_watch_t *w, const hs_config_t *cfg,
                               char *opt, int lineno)
 {
     char *eq = strchr(opt, '=');
@@ -339,7 +339,7 @@ static int parse_watch_option(rnt_watch_t *w, const rnt_config_t *cfg,
     return -1;
 }
 
-static int handle_watch(rnt_config_t *cfg, char *tokens[], int ntok, int lineno)
+static int handle_watch(hs_config_t *cfg, char *tokens[], int ntok, int lineno)
 {
     if (ntok < 2) {
         log_error("line %d: watch directive needs a path", lineno);
@@ -351,12 +351,12 @@ static int handle_watch(rnt_config_t *cfg, char *tokens[], int ntok, int lineno)
      * them explicitly, config_load's post-pass overrides them with
      * the final retention-default / compress-default so directive
      * order in the config file does not matter. */
-    rnt_watch_t w = {
+    hs_watch_t w = {
         .path           = NULL,
         .has_exclude    = false,
         .recursive      = true,
         .retention_ns   = cfg->retention_default_ns,
-        .priority       = RNT_PRIO_NORMAL,
+        .priority       = HS_PRIO_NORMAL,
         .compress       = cfg->compress_default,
         .set_retention  = false,
         .set_compress   = false,
@@ -392,7 +392,7 @@ static int handle_watch(rnt_config_t *cfg, char *tokens[], int ntok, int lineno)
 /* directive dispatch                                                 */
 /* ------------------------------------------------------------------ */
 
-static int dispatch(rnt_config_t *cfg, char *tokens[], int ntok, int lineno)
+static int dispatch(hs_config_t *cfg, char *tokens[], int ntok, int lineno)
 {
     const char *dir = tokens[0];
 
@@ -559,7 +559,7 @@ static int read_logical_line(FILE *fp, char **out, int *lineno_advance)
 /* public entry points                                                */
 /* ------------------------------------------------------------------ */
 
-rnt_config_t *config_load(const char *path)
+hs_config_t *config_load(const char *path)
 {
     if (path == NULL) {
         errno = EINVAL;
@@ -572,7 +572,7 @@ rnt_config_t *config_load(const char *path)
         return NULL;
     }
 
-    rnt_config_t *cfg = calloc(1, sizeof(*cfg));
+    hs_config_t *cfg = calloc(1, sizeof(*cfg));
     if (cfg == NULL) {
         log_error("out of memory");
         fclose(fp);
@@ -641,7 +641,7 @@ rnt_config_t *config_load(const char *path)
     return cfg;
 }
 
-void config_free(rnt_config_t *cfg)
+void config_free(hs_config_t *cfg)
 {
     if (cfg == NULL) return;
 
@@ -695,7 +695,7 @@ static int check_path_exists(const char *path, const char *what)
     return 0;
 }
 
-int config_validate(const rnt_config_t *cfg)
+int config_validate(const hs_config_t *cfg)
 {
     if (cfg == NULL) {
         errno = EINVAL;

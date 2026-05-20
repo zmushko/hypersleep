@@ -4,11 +4,11 @@
  * Five named sub-databases (see docs/architecture.md):
  *
  *   files       key  = <path-bytes> 0x00 <be64 captured_ts> <be32 seq>
- *               val  = rnt_file_entry (packed)
+ *               val  = hs_file_entry (packed)
  *   by_sha      key  = sha256[32]
  *               val  = uint32_t refcount
  *   deletions   key  = <path-bytes> 0x00 <be64 deleted_ts>
- *               val  = rnt_deletion (packed)
+ *               val  = hs_deletion (packed)
  *   moves       key  = <be32 cookie>
  *               val  = <be64 ts_ns> <from_path null-terminated>
  *   meta        key  = ASCII string ("schema_version", ...)
@@ -33,7 +33,7 @@
 
 #include "index.h"
 #include "log.h"
-#include "renatum.h"
+#include "hypersleep.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -41,7 +41,7 @@
 
 /* struct stat carries the nanosecond mtime under different names on
  * different libcs. Linux glibc/musl: st_mtim. macOS: st_mtimespec.
- * Renatum is Linux-only at runtime, but the shim keeps local
+ * Hypersleep is Linux-only at runtime, but the shim keeps local
  * compile-checks portable. */
 #if defined(__APPLE__) && !defined(st_mtim)
 # define st_mtim st_mtimespec
@@ -60,7 +60,7 @@
 #define INDEX_MAX_DBIS  16
 #define INDEX_PATH_MAX  498            /* 511 - 13 (sep + ts + seq) */
 
-struct rnt_index {
+struct hs_index {
     MDB_env *env;
     MDB_dbi  files;
     MDB_dbi  by_sha;
@@ -70,8 +70,8 @@ struct rnt_index {
     bool     readonly;
 };
 
-struct rnt_index_cursor {
-    rnt_index_t *idx;
+struct hs_index_cursor {
+    hs_index_t *idx;
     MDB_txn     *txn;
     MDB_cursor  *cursor;
     uint8_t     *prefix;       /* path-bytes + 0x00 separator */
@@ -164,7 +164,7 @@ static int lmdb_fail(int rc, const char *what)
 /* env management                                                     */
 /* ------------------------------------------------------------------ */
 
-rnt_index_t *index_open(const char *path, enum rnt_index_mode mode)
+hs_index_t *index_open(const char *path, enum hs_index_mode mode)
 {
     if (path == NULL) {
         errno = EINVAL;
@@ -178,12 +178,12 @@ rnt_index_t *index_open(const char *path, enum rnt_index_mode mode)
         return NULL;
     }
 
-    rnt_index_t *idx = calloc(1, sizeof(*idx));
+    hs_index_t *idx = calloc(1, sizeof(*idx));
     if (idx == NULL) {
         log_error("index: out of memory");
         return NULL;
     }
-    idx->readonly = (mode == RNT_IDX_READ);
+    idx->readonly = (mode == HS_IDX_READ);
 
     int rc = mdb_env_create(&idx->env);
     if (rc != 0) { lmdb_fail(rc, "mdb_env_create"); goto err; }
@@ -231,14 +231,14 @@ err:
     return NULL;
 }
 
-void index_close(rnt_index_t *idx)
+void index_close(hs_index_t *idx)
 {
     if (idx == NULL) return;
     if (idx->env) mdb_env_close(idx->env);
     free(idx);
 }
 
-int index_schema_check(rnt_index_t *idx)
+int index_schema_check(hs_index_t *idx)
 {
     if (idx == NULL) {
         errno = EINVAL;
@@ -261,14 +261,14 @@ int index_schema_check(rnt_index_t *idx)
                       "(uninitialised index?)");
             return -1;
         }
-        uint32_t v = RENATUM_SCHEMA_VERSION;
+        uint32_t v = HYPERSLEEP_SCHEMA_VERSION;
         MDB_val sv = { .mv_size = sizeof(v), .mv_data = &v };
         rc = mdb_put(txn, idx->meta, &key, &sv, 0);
         if (rc != 0) { mdb_txn_abort(txn); return lmdb_fail(rc, "mdb_put schema"); }
         rc = mdb_txn_commit(txn);
         if (rc != 0) return lmdb_fail(rc, "mdb_txn_commit (init schema)");
         log_info("index: initialised at schema version %u",
-                 RENATUM_SCHEMA_VERSION);
+                 HYPERSLEEP_SCHEMA_VERSION);
         return 0;
     }
     if (rc != 0) {
@@ -284,10 +284,10 @@ int index_schema_check(rnt_index_t *idx)
     memcpy(&found, val.mv_data, sizeof(found));
     mdb_txn_abort(txn);
 
-    if (found != RENATUM_SCHEMA_VERSION) {
+    if (found != HYPERSLEEP_SCHEMA_VERSION) {
         log_error("index: schema version mismatch: on-disk %u, code %u "
                   "(migration not yet implemented)",
-                  found, RENATUM_SCHEMA_VERSION);
+                  found, HYPERSLEEP_SCHEMA_VERSION);
         return -1;
     }
     return 0;
@@ -298,9 +298,9 @@ int index_schema_check(rnt_index_t *idx)
 /* ------------------------------------------------------------------ */
 
 static int by_sha_get(MDB_txn *txn, MDB_dbi dbi,
-                      const uint8_t sha[RNT_SHA_LEN], uint32_t *out)
+                      const uint8_t sha[HS_SHA_LEN], uint32_t *out)
 {
-    MDB_val k = { .mv_size = RNT_SHA_LEN, .mv_data = (void *)sha };
+    MDB_val k = { .mv_size = HS_SHA_LEN, .mv_data = (void *)sha };
     MDB_val v = {0};
     int rc = mdb_get(txn, dbi, &k, &v);
     if (rc == MDB_NOTFOUND) { *out = 0; return 0; }
@@ -311,17 +311,17 @@ static int by_sha_get(MDB_txn *txn, MDB_dbi dbi,
 }
 
 static int by_sha_put(MDB_txn *txn, MDB_dbi dbi,
-                      const uint8_t sha[RNT_SHA_LEN], uint32_t val)
+                      const uint8_t sha[HS_SHA_LEN], uint32_t val)
 {
-    MDB_val k = { .mv_size = RNT_SHA_LEN, .mv_data = (void *)sha };
+    MDB_val k = { .mv_size = HS_SHA_LEN, .mv_data = (void *)sha };
     MDB_val v = { .mv_size = sizeof(val), .mv_data = &val };
     return mdb_put(txn, dbi, &k, &v, 0);
 }
 
 static int by_sha_del(MDB_txn *txn, MDB_dbi dbi,
-                      const uint8_t sha[RNT_SHA_LEN])
+                      const uint8_t sha[HS_SHA_LEN])
 {
-    MDB_val k = { .mv_size = RNT_SHA_LEN, .mv_data = (void *)sha };
+    MDB_val k = { .mv_size = HS_SHA_LEN, .mv_data = (void *)sha };
     return mdb_del(txn, dbi, &k, NULL);
 }
 
@@ -353,8 +353,8 @@ static int next_seq_for(MDB_txn *txn, MDB_dbi dbi,
     return -1;
 }
 
-int index_insert(rnt_index_t *idx, const char *path,
-                 const uint8_t sha[RNT_SHA_LEN],
+int index_insert(hs_index_t *idx, const char *path,
+                 const uint8_t sha[HS_SHA_LEN],
                  const struct stat *st,
                  uint32_t event_mask, uint64_t captured_ns,
                  uint16_t flags)
@@ -393,9 +393,9 @@ int index_insert(rnt_index_t *idx, const char *path,
         return -1;
     }
 
-    rnt_file_entry_t entry;
+    hs_file_entry_t entry;
     memset(&entry, 0, sizeof(entry));
-    memcpy(entry.sha256, sha, RNT_SHA_LEN);
+    memcpy(entry.sha256, sha, HS_SHA_LEN);
     entry.size       = (uint64_t)st->st_size;
     entry.mtime_sec  = (int64_t)st->st_mtim.tv_sec;
     entry.mtime_nsec = (int32_t)st->st_mtim.tv_nsec;
@@ -424,7 +424,7 @@ int index_insert(rnt_index_t *idx, const char *path,
     return 0;
 }
 
-int index_get_latest(rnt_index_t *idx, const char *path, rnt_version_t *out)
+int index_get_latest(hs_index_t *idx, const char *path, hs_version_t *out)
 {
     if (idx == NULL || path == NULL || out == NULL) {
         errno = EINVAL;
@@ -473,12 +473,12 @@ int index_get_latest(rnt_index_t *idx, const char *path, rnt_version_t *out)
     if (found
         && k.mv_size >= plen
         && memcmp(k.mv_data, prefix, plen) == 0
-        && v.mv_size == sizeof(rnt_file_entry_t))
+        && v.mv_size == sizeof(hs_file_entry_t))
     {
         const uint8_t *kb = k.mv_data;
         memcpy(&out->entry, v.mv_data, sizeof(out->entry));
         out->captured_ns = get_be64(kb + plen);
-        memcpy(out->sha256, out->entry.sha256, RNT_SHA_LEN);
+        memcpy(out->sha256, out->entry.sha256, HS_SHA_LEN);
         out->num = 0;
         result = 0;
     } else {
@@ -490,8 +490,8 @@ int index_get_latest(rnt_index_t *idx, const char *path, rnt_version_t *out)
     return result;
 }
 
-bool index_has_path_sha(rnt_index_t *idx, const char *path,
-                        const uint8_t sha[RNT_SHA_LEN])
+bool index_has_path_sha(hs_index_t *idx, const char *path,
+                        const uint8_t sha[HS_SHA_LEN])
 {
     if (idx == NULL || path == NULL || sha == NULL) return false;
 
@@ -517,9 +517,9 @@ bool index_has_path_sha(rnt_index_t *idx, const char *path,
            && k.mv_size >= plen
            && memcmp(k.mv_data, prefix, plen) == 0)
     {
-        if (v.mv_size == sizeof(rnt_file_entry_t)) {
-            const rnt_file_entry_t *e = v.mv_data;
-            if (memcmp(e->sha256, sha, RNT_SHA_LEN) == 0) {
+        if (v.mv_size == sizeof(hs_file_entry_t)) {
+            const hs_file_entry_t *e = v.mv_data;
+            if (memcmp(e->sha256, sha, HS_SHA_LEN) == 0) {
                 found = true;
                 break;
             }
@@ -531,14 +531,14 @@ bool index_has_path_sha(rnt_index_t *idx, const char *path,
     return found;
 }
 
-rnt_index_cursor_t *index_iter_path(rnt_index_t *idx, const char *path)
+hs_index_cursor_t *index_iter_path(hs_index_t *idx, const char *path)
 {
     if (idx == NULL || path == NULL) {
         errno = EINVAL;
         return NULL;
     }
 
-    rnt_index_cursor_t *cur = calloc(1, sizeof(*cur));
+    hs_index_cursor_t *cur = calloc(1, sizeof(*cur));
     if (cur == NULL) return NULL;
     cur->idx = idx;
 
@@ -570,7 +570,7 @@ rnt_index_cursor_t *index_iter_path(rnt_index_t *idx, const char *path)
     return cur;
 }
 
-int index_cursor_next(rnt_index_cursor_t *c, rnt_version_t *out)
+int index_cursor_next(hs_index_cursor_t *c, hs_version_t *out)
 {
     if (c == NULL || out == NULL) {
         errno = EINVAL;
@@ -599,7 +599,7 @@ int index_cursor_next(rnt_index_cursor_t *c, rnt_version_t *out)
         c->exhausted = true;
         return 1;
     }
-    if (v.mv_size != sizeof(rnt_file_entry_t)) {
+    if (v.mv_size != sizeof(hs_file_entry_t)) {
         c->exhausted = true;
         log_error("index: corrupt file_entry size %zu", v.mv_size);
         return -1;
@@ -607,12 +607,12 @@ int index_cursor_next(rnt_index_cursor_t *c, rnt_version_t *out)
     const uint8_t *kb = k.mv_data;
     memcpy(&out->entry, v.mv_data, sizeof(out->entry));
     out->captured_ns = get_be64(kb + c->prefix_len);
-    memcpy(out->sha256, out->entry.sha256, RNT_SHA_LEN);
+    memcpy(out->sha256, out->entry.sha256, HS_SHA_LEN);
     out->num = 0;
     return 0;
 }
 
-void index_cursor_close(rnt_index_cursor_t *c)
+void index_cursor_close(hs_index_cursor_t *c)
 {
     if (c == NULL) return;
     if (c->cursor) mdb_cursor_close(c->cursor);
@@ -625,8 +625,8 @@ void index_cursor_close(rnt_index_cursor_t *c)
 /* deletions                                                          */
 /* ------------------------------------------------------------------ */
 
-int index_record_deletion(rnt_index_t *idx, const char *path,
-                          uint64_t deleted_ns, const rnt_deletion_t *del)
+int index_record_deletion(hs_index_t *idx, const char *path,
+                          uint64_t deleted_ns, const hs_deletion_t *del)
 {
     if (idx == NULL || path == NULL || del == NULL) {
         errno = EINVAL;
@@ -660,7 +660,7 @@ int index_record_deletion(rnt_index_t *idx, const char *path,
 /* moves: cookie -> { ts_ns, from_path }                              */
 /* ------------------------------------------------------------------ */
 
-int index_moves_pending(rnt_index_t *idx, uint32_t cookie,
+int index_moves_pending(hs_index_t *idx, uint32_t cookie,
                         const char *from_path)
 {
     if (idx == NULL || from_path == NULL) {
@@ -698,7 +698,7 @@ int index_moves_pending(rnt_index_t *idx, uint32_t cookie,
     return 0;
 }
 
-int index_moves_resolve(rnt_index_t *idx, uint32_t cookie,
+int index_moves_resolve(hs_index_t *idx, uint32_t cookie,
                         const char *to_path, char **out_from)
 {
     if (idx == NULL || out_from == NULL) {
@@ -751,7 +751,7 @@ int index_moves_resolve(rnt_index_t *idx, uint32_t cookie,
     return 0;
 }
 
-int index_moves_gc(rnt_index_t *idx, uint64_t older_than_ns)
+int index_moves_gc(hs_index_t *idx, uint64_t older_than_ns)
 {
     if (idx == NULL) { errno = EINVAL; return -1; }
     if (idx->readonly) { errno = EROFS; return -1; }
@@ -795,8 +795,8 @@ int index_moves_gc(rnt_index_t *idx, uint64_t older_than_ns)
 /* SHAs whose refcount reached zero — caller deletes those blobs.    */
 /* ------------------------------------------------------------------ */
 
-int index_sha_refcount(rnt_index_t *idx,
-                       const uint8_t sha[RNT_SHA_LEN],
+int index_sha_refcount(hs_index_t *idx,
+                       const uint8_t sha[HS_SHA_LEN],
                        uint32_t *out)
 {
     if (idx == NULL || sha == NULL || out == NULL) {
@@ -814,7 +814,7 @@ int index_sha_refcount(rnt_index_t *idx,
     return 0;
 }
 
-int index_prune_by_age(rnt_index_t *idx, uint64_t older_than_ns,
+int index_prune_by_age(hs_index_t *idx, uint64_t older_than_ns,
                        size_t *out_pruned)
 {
     if (idx == NULL) { errno = EINVAL; return -1; }
@@ -832,7 +832,7 @@ int index_prune_by_age(rnt_index_t *idx, uint64_t older_than_ns,
     MDB_val k = {0}, v = {0};
     rc = mdb_cursor_get(c, &k, &v, MDB_FIRST);
     while (rc == 0) {
-        if (k.mv_size < 13 || v.mv_size != sizeof(rnt_file_entry_t)) {
+        if (k.mv_size < 13 || v.mv_size != sizeof(hs_file_entry_t)) {
             rc = mdb_cursor_get(c, &k, &v, MDB_NEXT);
             continue;
         }
@@ -844,9 +844,9 @@ int index_prune_by_age(rnt_index_t *idx, uint64_t older_than_ns,
             rc = mdb_cursor_get(c, &k, &v, MDB_NEXT);
             continue;
         }
-        const rnt_file_entry_t *e = v.mv_data;
-        uint8_t sha[RNT_SHA_LEN];
-        memcpy(sha, e->sha256, RNT_SHA_LEN);
+        const hs_file_entry_t *e = v.mv_data;
+        uint8_t sha[HS_SHA_LEN];
+        memcpy(sha, e->sha256, HS_SHA_LEN);
 
         int dr = mdb_cursor_del(c, 0);
         if (dr != 0) { rc = dr; break; }
