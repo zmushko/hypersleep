@@ -21,13 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Other verbs (`status`, `log`, `show`, `diff`, `find`, `verify`,
   `config`) are unchanged.
 
+### Added (since v0.1.0)
+
+- `hypersleep wake --force` end-to-end: interactive `yes`
+  prompt (with `--yes` to skip), pre-snapshot via control-socket
+  client (`--no-pre-snapshot` opts out), post-write SHA verify
+  loop (`--verify` / `--no-verify`; default yes for `--force`,
+  no for `--to`). New module `control_client.c` carries the
+  AF_UNIX/SOCK_DGRAM client with autobind + 2 s recv timeout.
+- `tests/stress/` — five end-to-end scenarios driving the real
+  daemon: `deep_mkdir`, `atomic_save`, `symlink_no_follow`,
+  `recursive_move`, `parallel_writes`. Linux-only.
+
 ### TODO before v0.1.0 → v0.2.0
 
-- Stress tests in `tests/stress/` (deep_mkdir, atomic_save,
-  IN_Q_OVERFLOW recovery, symlink_no_follow, recursive_move —
-  mirroring the librnotify suite at one level up).
-- `hypersleep wake --force` CLI side: control-socket client,
-  interactive confirmation, post-write integrity verify loop.
 - `hypersleep find` — needs an index iterator over a path prefix
   (or the whole files sub-DB) before it can serve `--name`,
   `--grep`, `--deleted`, etc.
