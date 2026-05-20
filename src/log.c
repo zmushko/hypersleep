@@ -78,14 +78,21 @@ void log_init(const hs_config_t *cfg, bool foreground)
 {
     g.level = cfg ? cfg->log_level : HS_LOG_INFO;
 
-    /* Backend choice in order of preference:
-     *   1. cfg->log_path, if configured — applies in BOTH foreground
-     *      and daemon modes. Operators running --foreground for
-     *      debugging usually want the file too so test harnesses and
-     *      log-grep tooling work without a tty redirect.
-     *   2. stderr — for foreground without a configured path.
-     *   3. syslog — daemon fallback so logs never go to /dev/null.
+    /* Backend choice:
+     *   foreground — stderr always. An operator running --foreground
+     *                explicitly asked to see output in the terminal;
+     *                routing it into a configured log file instead
+     *                makes startup errors disappear. Test harnesses
+     *                that need a file-shaped log capture stderr with
+     *                a shell redirect.
+     *   daemon     — configured file path if set; syslog otherwise.
      */
+    if (foreground) {
+        g.backend = LOG_BACKEND_STDERR;
+        g.file = stderr;
+        return;
+    }
+
     if (cfg && cfg->log_path) {
         /* O_NOFOLLOW so a symlink at the configured log path (e.g.
          * a misconfiguration or a deliberate plant) does not steer
@@ -102,15 +109,8 @@ void log_init(const hs_config_t *cfg, bool foreground)
             g.file = f;
             return;
         }
-        /* fall through to syslog (daemon) or stderr (foreground) so
-         * the file-open failure itself is still recorded somewhere
-         * reachable */
-    }
-
-    if (foreground) {
-        g.backend = LOG_BACKEND_STDERR;
-        g.file = stderr;
-        return;
+        /* fall through to syslog so the file-open failure itself
+         * is still recorded somewhere reachable */
     }
 
     openlog("hypersleepd", LOG_PID | LOG_CONS, LOG_DAEMON);
