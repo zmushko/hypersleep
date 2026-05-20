@@ -77,7 +77,7 @@ $(LIBRNOTIFY_A):
 		echo "Run: git submodule update --init --recursive"; \
 		exit 1; \
 	fi
-	$(MAKE) -C $(LIBRNOTIFY_DIR) static
+	$(MAKE) -C $(LIBRNOTIFY_DIR) librnotify.a
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
