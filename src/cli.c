@@ -27,9 +27,9 @@ int cmd_status (int argc, char **argv, const hs_config_t *cfg);
 int cmd_log    (int argc, char **argv, const hs_config_t *cfg);
 int cmd_show   (int argc, char **argv, const hs_config_t *cfg);
 int cmd_diff   (int argc, char **argv, const hs_config_t *cfg);
-int cmd_restore(int argc, char **argv, const hs_config_t *cfg);
+int cmd_wake(int argc, char **argv, const hs_config_t *cfg);
 int cmd_find   (int argc, char **argv, const hs_config_t *cfg);
-int cmd_prune  (int argc, char **argv, const hs_config_t *cfg);
+int cmd_purge  (int argc, char **argv, const hs_config_t *cfg);
 int cmd_verify (int argc, char **argv, const hs_config_t *cfg);
 int cmd_config_cmd(int argc, char **argv, const hs_config_t *cfg);
 
@@ -44,9 +44,9 @@ static const struct subcmd commands[] = {
     { "log",     cmd_log,     "list versions of a path" },
     { "show",    cmd_show,    "print a version's content to stdout" },
     { "diff",    cmd_diff,    "compare two versions" },
-    { "restore", cmd_restore, "restore a version to a file" },
+    { "wake",    cmd_wake,    "wake a stored version to a file" },
     { "find",    cmd_find,    "search the history" },
-    { "prune",   cmd_prune,   "remove old versions" },
+    { "purge",   cmd_purge,   "purge old versions by age" },
     { "verify",  cmd_verify,  "check store integrity" },
     { "config",  cmd_config_cmd, "inspect or test config" },
     { NULL, NULL, NULL }

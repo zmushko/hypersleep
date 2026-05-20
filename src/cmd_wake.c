@@ -1,5 +1,5 @@
 /*
- * cmd_restore.c — hypersleep restore <path> v<N> --to <dst>
+ * cmd_wake.c — hypersleep wake <path> v<N> --to <dst>
  *
  * v0.1.0 scope: --to only. --force (destructive in-place restore
  * with pre-snapshot via control socket) is deferred to v0.1.0+.
@@ -65,7 +65,7 @@ static int resolve_version(hs_index_t *idx, const char *path,
     return 0;
 }
 
-int cmd_restore(int argc, char **argv, const hs_config_t *cfg)
+int cmd_wake(int argc, char **argv, const hs_config_t *cfg)
 {
     const char *to_path = NULL;
     bool force         = false;
@@ -92,7 +92,7 @@ int cmd_restore(int argc, char **argv, const hs_config_t *cfg)
         case 'd': dry_run = true;         break;
         case 'h':
             fprintf(stderr,
-                "Usage: hypersleep restore <path> v<N> --to <dst> "
+                "Usage: hypersleep wake <path> v<N> --to <dst> "
                 "[--preserve-mode|--no-preserve-mode] [--dry-run]\n");
             return HS_EXIT_OK;
         default:
@@ -100,47 +100,47 @@ int cmd_restore(int argc, char **argv, const hs_config_t *cfg)
         }
     }
     if (optind + 1 >= argc) {
-        fprintf(stderr, "hypersleep restore: missing <path> v<N>\n");
+        fprintf(stderr, "hypersleep wake: missing <path> v<N>\n");
         return HS_EXIT_USAGE;
     }
     const char *path = argv[optind];
     int want_n = 0;
     if (parse_vn(argv[optind + 1], &want_n) < 0) {
-        fprintf(stderr, "hypersleep restore: invalid '%s' (expected vN)\n",
+        fprintf(stderr, "hypersleep wake: invalid '%s' (expected vN)\n",
                 argv[optind + 1]);
         return HS_EXIT_USAGE;
     }
 
     if (force) {
         fprintf(stderr,
-            "hypersleep restore: --force is not wired in v0.1.0; "
+            "hypersleep wake: --force is not wired in v0.1.0; "
             "use --to <dst> to write the version to a new path\n");
         return HS_EXIT_USAGE;
     }
     if (to_path == NULL) {
         fprintf(stderr,
-            "hypersleep restore: --to <dst> required (use --force for "
+            "hypersleep wake: --to <dst> required (use --force for "
             "in-place when available)\n");
         return HS_EXIT_EXISTS;
     }
 
     hs_index_t *idx = index_open(cfg->index_path, HS_IDX_READ);
     if (idx == NULL) {
-        fprintf(stderr, "hypersleep restore: cannot open index\n");
+        fprintf(stderr, "hypersleep wake: cannot open index\n");
         return HS_EXIT_ERROR;
     }
     hs_version_t v;
     if (resolve_version(idx, path, want_n, &v) < 0) {
         index_close(idx);
         if (errno == ENOENT) {
-            fprintf(stderr, "hypersleep restore: no versions for %s\n", path);
+            fprintf(stderr, "hypersleep wake: no versions for %s\n", path);
             return HS_EXIT_NOTFOUND;
         }
         if (errno == ERANGE) {
-            fprintf(stderr, "hypersleep restore: v%d out of range\n", want_n);
+            fprintf(stderr, "hypersleep wake: v%d out of range\n", want_n);
             return HS_EXIT_NOTFOUND;
         }
-        fprintf(stderr, "hypersleep restore: lookup failed: %s\n", strerror(errno));
+        fprintf(stderr, "hypersleep wake: lookup failed: %s\n", strerror(errno));
         return HS_EXIT_ERROR;
     }
     index_close(idx);
@@ -155,17 +155,17 @@ int cmd_restore(int argc, char **argv, const hs_config_t *cfg)
 
     hs_store_t *st = store_open(cfg->store_path);
     if (st == NULL) {
-        fprintf(stderr, "hypersleep restore: cannot open store\n");
+        fprintf(stderr, "hypersleep wake: cannot open store\n");
         return HS_EXIT_ERROR;
     }
     int rc = restore_to(st, &v, to_path, preserve_mode);
     store_close(st);
     if (rc < 0) {
         if (errno == EEXIST) {
-            fprintf(stderr, "hypersleep restore: %s already exists\n", to_path);
+            fprintf(stderr, "hypersleep wake: %s already exists\n", to_path);
             return HS_EXIT_EXISTS;
         }
-        fprintf(stderr, "hypersleep restore: %s\n", strerror(errno));
+        fprintf(stderr, "hypersleep wake: %s\n", strerror(errno));
         return HS_EXIT_ERROR;
     }
     log_info("restored v%d -> %s", v.num, to_path);

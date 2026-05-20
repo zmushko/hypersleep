@@ -51,9 +51,9 @@ CLI_SRCS := \
     src/cmd_log.c \
     src/cmd_show.c \
     src/cmd_diff.c \
-    src/cmd_restore.c \
+    src/cmd_wake.c \
     src/cmd_find.c \
-    src/cmd_prune.c \
+    src/cmd_purge.c \
     src/cmd_verify.c \
     src/cmd_config.c \
     src/restore.c \

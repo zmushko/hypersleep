@@ -6,7 +6,7 @@
  * the CAS, checks each blob's refcount in the index, and unlinks
  * the orphans.
  *
- * Race note: if `hypersleep prune` runs while hypersleepd is writing
+ * Race note: if `hypersleep purge` runs while hypersleepd is writing
  * (single-writer LMDB), the writer-lock contention serialises us.
  * A blob added by the daemon between our refcount check and our
  * store_remove call would be erroneously deleted. The window is

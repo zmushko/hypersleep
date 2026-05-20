@@ -3,7 +3,7 @@
  *
  * Prints the contents of a captured version to stdout (or to a file
  * via --out). Never touches the original watched path — that is
- * what `hypersleep restore` is for.
+ * what `hypersleep wake` is for.
  *
  * v0.1.0 scope: positional vN selector only. The --at/--before/
  * --by-sha selectors and --no-decompress flag are deferred.

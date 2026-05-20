@@ -1,5 +1,5 @@
 /*
- * cmd_prune.c — hypersleep prune --older-than <duration>
+ * cmd_purge.c — hypersleep purge --older-than <duration>
  *
  * v0.1.0 scope: --older-than only. The borg-style --keep-N-* flags,
  * --path prefix filter, and --dry-run are deferred.
@@ -39,7 +39,7 @@ static uint64_t now_ns(void)
     return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
-int cmd_prune(int argc, char **argv, const hs_config_t *cfg)
+int cmd_purge(int argc, char **argv, const hs_config_t *cfg)
 {
     const char *older_than = NULL;
     bool no_gc = false;
@@ -58,7 +58,7 @@ int cmd_prune(int argc, char **argv, const hs_config_t *cfg)
         case 'G': no_gc = true;        break;
         case 'h':
             fprintf(stderr,
-                "Usage: hypersleep prune --older-than <duration> "
+                "Usage: hypersleep purge --older-than <duration> "
                 "[--no-gc]\n");
             return HS_EXIT_OK;
         default:
@@ -66,25 +66,25 @@ int cmd_prune(int argc, char **argv, const hs_config_t *cfg)
         }
     }
     if (older_than == NULL) {
-        fprintf(stderr, "hypersleep prune: --older-than required\n");
+        fprintf(stderr, "hypersleep purge: --older-than required\n");
         return HS_EXIT_USAGE;
     }
 
     uint64_t window_ns = 0;
     if (parse_duration_ns(older_than, &window_ns) < 0) {
         fprintf(stderr,
-                "hypersleep prune: invalid duration '%s'\n", older_than);
+                "hypersleep purge: invalid duration '%s'\n", older_than);
         return HS_EXIT_USAGE;
     }
     if (window_ns == 0) {
         fprintf(stderr,
-                "hypersleep prune: 'infinite' makes no sense for --older-than\n");
+                "hypersleep purge: 'infinite' makes no sense for --older-than\n");
         return HS_EXIT_USAGE;
     }
     uint64_t cutoff = now_ns();
     if (cutoff < window_ns) {
         fprintf(stderr,
-                "hypersleep prune: cutoff would go negative; clock skew?\n");
+                "hypersleep purge: cutoff would go negative; clock skew?\n");
         return HS_EXIT_ERROR;
     }
     cutoff -= window_ns;
@@ -92,14 +92,14 @@ int cmd_prune(int argc, char **argv, const hs_config_t *cfg)
     hs_index_t *idx = index_open(cfg->index_path, HS_IDX_WRITE);
     if (idx == NULL) {
         fprintf(stderr,
-                "hypersleep prune: cannot open index for write "
+                "hypersleep purge: cannot open index for write "
                 "(daemon running?): %s\n", strerror(errno));
         return HS_EXIT_ERROR;
     }
 
     size_t blobs_orphaned = 0;
     if (index_prune_by_age(idx, cutoff, &blobs_orphaned) < 0) {
-        fprintf(stderr, "hypersleep prune: index_prune_by_age failed\n");
+        fprintf(stderr, "hypersleep purge: index_prune_by_age failed\n");
         index_close(idx);
         return HS_EXIT_ERROR;
     }
@@ -109,13 +109,13 @@ int cmd_prune(int argc, char **argv, const hs_config_t *cfg)
     if (!no_gc && blobs_orphaned > 0) {
         hs_store_t *st = store_open(cfg->store_path);
         if (st == NULL) {
-            fprintf(stderr, "hypersleep prune: cannot open store for GC\n");
+            fprintf(stderr, "hypersleep purge: cannot open store for GC\n");
             index_close(idx);
             return HS_EXIT_ERROR;
         }
         size_t removed = 0;
         if (retention_sweep_orphans(idx, st, &removed) < 0) {
-            fprintf(stderr, "hypersleep prune: GC sweep failed\n");
+            fprintf(stderr, "hypersleep purge: GC sweep failed\n");
             store_close(st);
             index_close(idx);
             return HS_EXIT_ERROR;
