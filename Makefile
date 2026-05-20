@@ -1,5 +1,5 @@
-# Renatum Makefile
-# Builds renatumd (daemon) and renatum (CLI) as separate binaries
+# Hypersleep Makefile
+# Builds hypersleepd (daemon) and hypersleep (CLI) as separate binaries
 # that share a common library of internal modules.
 
 PREFIX      ?= /usr/local
@@ -63,12 +63,12 @@ COMMON_OBJS := $(COMMON_SRCS:.c=.o)
 DAEMON_OBJS := $(DAEMON_SRCS:.c=.o) $(COMMON_OBJS)
 CLI_OBJS    := $(CLI_SRCS:.c=.o) $(COMMON_OBJS)
 
-all: renatumd renatum
+all: hypersleepd hypersleep
 
-renatumd: $(DAEMON_OBJS) $(LIBRNOTIFY_A)
+hypersleepd: $(DAEMON_OBJS) $(LIBRNOTIFY_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-renatum: $(CLI_OBJS) $(LIBRNOTIFY_A)
+hypersleep: $(CLI_OBJS) $(LIBRNOTIFY_A)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(LIBRNOTIFY_A):
@@ -84,37 +84,37 @@ $(LIBRNOTIFY_A):
 
 # Installation
 
-install: renatumd renatum
+install: hypersleepd hypersleep
 	install -d $(DESTDIR)$(SBINDIR) $(DESTDIR)$(BINDIR)
-	install -d $(DESTDIR)$(SYSCONFDIR)/renatum
+	install -d $(DESTDIR)$(SYSCONFDIR)/hypersleep
 	install -d $(DESTDIR)$(SYSTEMDDIR)
-	install -d $(DESTDIR)$(LOCALSTATEDIR)/lib/renatum/store
-	install -d $(DESTDIR)$(LOCALSTATEDIR)/lib/renatum/index
-	install -d $(DESTDIR)$(LOCALSTATEDIR)/log/renatum
-	install -m 0755 renatumd $(DESTDIR)$(SBINDIR)/renatumd
-	install -m 0755 renatum  $(DESTDIR)$(BINDIR)/renatum
-	install -m 0644 etc/renatum.conf.example \
-	    $(DESTDIR)$(SYSCONFDIR)/renatum/renatum.conf.example
-	install -m 0644 systemd/renatumd.service \
-	    $(DESTDIR)$(SYSTEMDDIR)/renatumd.service
+	install -d $(DESTDIR)$(LOCALSTATEDIR)/lib/hypersleep/store
+	install -d $(DESTDIR)$(LOCALSTATEDIR)/lib/hypersleep/index
+	install -d $(DESTDIR)$(LOCALSTATEDIR)/log/hypersleep
+	install -m 0755 hypersleepd $(DESTDIR)$(SBINDIR)/hypersleepd
+	install -m 0755 hypersleep  $(DESTDIR)$(BINDIR)/hypersleep
+	install -m 0644 etc/hypersleep.conf.example \
+	    $(DESTDIR)$(SYSCONFDIR)/hypersleep/hypersleep.conf.example
+	install -m 0644 systemd/hypersleepd.service \
+	    $(DESTDIR)$(SYSTEMDDIR)/hypersleepd.service
 
 uninstall:
-	rm -f $(DESTDIR)$(SBINDIR)/renatumd
-	rm -f $(DESTDIR)$(BINDIR)/renatum
-	rm -f $(DESTDIR)$(SYSTEMDDIR)/renatumd.service
-	@echo "Configuration in $(SYSCONFDIR)/renatum/ left intact."
-	@echo "Data in $(LOCALSTATEDIR)/lib/renatum/ left intact."
+	rm -f $(DESTDIR)$(SBINDIR)/hypersleepd
+	rm -f $(DESTDIR)$(BINDIR)/hypersleep
+	rm -f $(DESTDIR)$(SYSTEMDDIR)/hypersleepd.service
+	@echo "Configuration in $(SYSCONFDIR)/hypersleep/ left intact."
+	@echo "Data in $(LOCALSTATEDIR)/lib/hypersleep/ left intact."
 
 # Development
 
 .PHONY: clean test check format
 
 clean:
-	rm -f renatumd renatum
+	rm -f hypersleepd hypersleep
 	rm -f src/*.o
 	$(MAKE) -C $(LIBRNOTIFY_DIR) clean 2>/dev/null || true
 
-test: renatumd renatum
+test: hypersleepd hypersleep
 	@echo "Unit tests not yet implemented."
 	@echo "End-to-end stress tests live in tests/stress/"
 	@for f in tests/stress/*.sh; do \

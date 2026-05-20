@@ -3,8 +3,8 @@
 *.a
 *.so
 *.so.*
-renatumd
-renatum
+hypersleepd
+hypersleep
 
 # Editor / IDE
 *.swp

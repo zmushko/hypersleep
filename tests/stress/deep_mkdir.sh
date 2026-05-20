@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # tests/stress/deep_mkdir.sh
 #
-# Stress test the race-free recursive watching of librnotify (via Renatum).
+# Stress test the race-free recursive watching of librnotify (via Hypersleep).
 # Creates a deep directory structure atomically and verifies that every
 # file gets captured into the CAS.
 
 set -euo pipefail
 
-TMPDIR=$(mktemp -d /tmp/renatum-stress.XXXXXX)
+TMPDIR=$(mktemp -d /tmp/hypersleep-stress.XXXXXX)
 trap "rm -rf $TMPDIR" EXIT
 
-# TODO: when renatumd is implemented, start it pointing at $TMPDIR
+# TODO: when hypersleepd is implemented, start it pointing at $TMPDIR
 # and verify it captures all created files.
-echo "deep_mkdir.sh: scaffolding only — fill in after renatumd works"
+echo "deep_mkdir.sh: scaffolding only — fill in after hypersleepd works"
 
 WATCH_DIR="$TMPDIR/watch"
 mkdir -p "$WATCH_DIR"
@@ -31,5 +31,5 @@ wait
 echo "Created tree:"
 find "$WATCH_DIR" | wc -l
 
-# TODO: query renatum log to verify all files captured
-echo "Skipping verification until renatumd is implemented"
+# TODO: query hypersleep log to verify all files captured
+echo "Skipping verification until hypersleepd is implemented"

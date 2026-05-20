@@ -1,22 +1,22 @@
 [Unit]
-Description=Renatum continuous filesystem versioning daemon
-Documentation=https://github.com/zmushko/renatum
+Description=Hypersleep continuous filesystem versioning daemon
+Documentation=https://github.com/zmushko/hypersleep
 After=local-fs.target
 Requires=local-fs.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/sbin/renatumd --foreground
+ExecStart=/usr/local/sbin/hypersleepd --foreground
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
 
 # Privileges
-# renatumd needs read access to watched paths and write access to
-# /var/lib/renatum/. Running as root is the simplest path; tighten
+# hypersleepd needs read access to watched paths and write access to
+# /var/lib/hypersleep/. Running as root is the simplest path; tighten
 # with User= + AmbientCapabilities= for production.
-# User=renatum
+# User=hypersleep
 # AmbientCapabilities=CAP_DAC_READ_SEARCH
 
 # Resource limits
@@ -24,7 +24,7 @@ LimitNOFILE=65536
 
 # Hardening (relax if it breaks something on your system)
 ProtectSystem=strict
-ReadWritePaths=/var/lib/renatum /var/log/renatum /run/renatum
+ReadWritePaths=/var/lib/hypersleep /var/log/hypersleep /run/hypersleep
 ProtectHome=read-only
 PrivateTmp=true
 ProtectKernelTunables=true

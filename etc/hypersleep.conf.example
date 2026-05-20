@@ -1,13 +1,13 @@
-# /etc/renatum/renatum.conf — example
+# /etc/hypersleep/hypersleep.conf — example
 # See docs/config.md for the full reference.
 
 # --- Storage ---------------------------------------------------------------
 
-storage         /var/lib/renatum/store
-index           /var/lib/renatum/index
-log             /var/log/renatum/renatumd.log
+storage         /var/lib/hypersleep/store
+index           /var/lib/hypersleep/index
+log             /var/log/hypersleep/hypersleepd.log
 log-level       info
-control-socket  /run/renatum/control.sock
+control-socket  /run/hypersleep/control.sock
 
 # --- Watched paths ---------------------------------------------------------
 
