@@ -196,7 +196,13 @@ hs_index_t *index_open(const char *path, enum hs_index_mode mode)
 
     unsigned env_flags = MDB_NOTLS;
     if (idx->readonly) env_flags |= MDB_RDONLY;
-    rc = mdb_env_open(idx->env, path, env_flags, 0660);
+    /* 0644 (not 0660) so a hypersleep CLI run by any local user
+     * can open the LMDB env read-only after the daemon has created
+     * data.mdb / lock.mdb. Restrictive prod setups put
+     * /var/lib/hypersleep itself behind 2750 + group ownership;
+     * the per-file mode matters less than the parent directory's
+     * traversal bits. */
+    rc = mdb_env_open(idx->env, path, env_flags, 0644);
     if (rc != 0) { lmdb_fail(rc, "mdb_env_open"); goto err; }
 
     /* Open all sub-DBs in one txn so the DBI handles are valid for
