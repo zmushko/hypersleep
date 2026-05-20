@@ -425,7 +425,16 @@ int store_iterate(hs_store_t *s, hs_store_iter_fn fn, void *user)
 
         DIR *shard = opendir(shardp);
         if (shard == NULL) {
-            log_warn("store: opendir %s: %s", shardp, strerror(errno));
+            /* EACCES is the typical "you didn't run me as the user
+             * that wrote the store" — happens dozens of times in
+             * a row and is not actionable from a status query.
+             * Drop it to debug so non-root status calls stay
+             * quiet. Other errors still warn. */
+            if (errno == EACCES) {
+                log_debug("store: opendir %s: %s", shardp, strerror(errno));
+            } else {
+                log_warn("store: opendir %s: %s", shardp, strerror(errno));
+            }
             free(shardp);
             continue;
         }

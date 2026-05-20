@@ -474,9 +474,22 @@ static int dispatch(hs_config_t *cfg, char *tokens[], int ntok, int lineno)
         return handle_watch(cfg, tokens, ntok, lineno);
     }
 
-    /* Tolerate unknown directives with a warning rather than failing
-     * the whole load — the example config in etc/ already references
-     * directives like auto-prune-schedule that we have not wired up. */
+    /* Directives that are documented in docs/config.md and reserved
+     * for a future version. Silently accept them so the example
+     * config does not spam a warning on every CLI invocation.
+     * Genuinely unknown directives still warn. */
+    static const char *const deferred[] = {
+        "auto-prune-schedule",
+        NULL,
+    };
+    for (int i = 0; deferred[i]; i++) {
+        if (!strcasecmp(dir, deferred[i])) {
+            log_debug("line %d: directive '%s' is reserved for a future "
+                      "version (accepted, no effect)", lineno, dir);
+            return 0;
+        }
+    }
+
     log_warn("line %d: unknown directive '%s' (ignored)", lineno, dir);
     return 0;
 
