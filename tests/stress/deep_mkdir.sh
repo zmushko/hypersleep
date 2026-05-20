@@ -1,35 +1,39 @@
 #!/usr/bin/env bash
-# tests/stress/deep_mkdir.sh
+# deep_mkdir.sh
 #
-# Stress test the race-free recursive watching of librnotify (via Hypersleep).
-# Creates a deep directory structure atomically and verifies that every
-# file gets captured into the CAS.
+# The killer feature of librnotify is race-free recursive watching:
+# when a new directory tree is created in one shell command (mkdir -p
+# plus file writes), librnotify's readdir-after-add_watch surfaces
+# synthetic IN_CREATE events for entries that existed at the moment
+# the parent's watch went in. Hypersleep's snapshot pipeline then
+# captures each file into the CAS.
+#
+# If that race were open, the deep leaves would be silently lost.
 
-set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 
-TMPDIR=$(mktemp -d /tmp/hypersleep-stress.XXXXXX)
-trap "rm -rf $TMPDIR" EXIT
+echo "== deep_mkdir =="
+setup_env
+trap teardown_env EXIT
 
-# TODO: when hypersleepd is implemented, start it pointing at $TMPDIR
-# and verify it captures all created files.
-echo "deep_mkdir.sh: scaffolding only — fill in after hypersleepd works"
+start_daemon || exit 1
 
-WATCH_DIR="$TMPDIR/watch"
-mkdir -p "$WATCH_DIR"
+# Create the tree in one go so the deepest entries appear inside
+# their parents before our watch on those parents settles.
+mkdir -p "$WATCH/a/b/c/d/e"
+for i in 1 2 3 4 5; do
+    printf 'leaf_%d\n' "$i" >"$WATCH/a/b/c/d/e/file_$i.txt"
+done
 
-# Atomic deep create with files
-( mkdir -p "$WATCH_DIR/L1/L2/L3/L4/L5"
-  for L in L1 L1/L2 L1/L2/L3 L1/L2/L3/L4 L1/L2/L3/L4/L5; do
-    for i in 1 2 3; do
-      echo "content of $L/file_$i" > "$WATCH_DIR/$L/file_$i.txt"
-    done
-  done
-) &
-wait
+settle 2
 
-# Expected: 5 directories + 15 files = 20 capture events
-echo "Created tree:"
-find "$WATCH_DIR" | wc -l
+for i in 1 2 3 4 5; do
+    assert_log_contains "$WATCH/a/b/c/d/e/file_$i.txt" \
+        "file_$i.txt captured under deep tree"
+done
 
-# TODO: query hypersleep log to verify all files captured
-echo "Skipping verification until hypersleepd is implemented"
+# And the contents must round-trip through `show`.
+assert_show_eq "$WATCH/a/b/c/d/e/file_3.txt" v1 "leaf_3" \
+    "file_3.txt v1 contents round-trip"
+
+exit $FAILED

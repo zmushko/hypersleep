@@ -116,12 +116,7 @@ clean:
 	$(MAKE) -C $(LIBRNOTIFY_DIR) clean 2>/dev/null || true
 
 test: hypersleepd hypersleep
-	@echo "Unit tests not yet implemented."
-	@echo "End-to-end stress tests live in tests/stress/"
-	@for f in tests/stress/*.sh; do \
-	    echo "Running $$f"; \
-	    bash $$f || exit 1; \
-	done
+	@tests/stress/run_all.sh
 
 check:
 	@command -v cppcheck >/dev/null || { echo "cppcheck not installed"; exit 1; }
