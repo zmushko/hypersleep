@@ -484,8 +484,11 @@ static int dispatch(hs_config_t *cfg, char *tokens[], int ntok, int lineno)
     };
     for (int i = 0; deferred[i]; i++) {
         if (!strcasecmp(dir, deferred[i])) {
-            log_debug("line %d: directive '%s' is reserved for a future "
-                      "version (accepted, no effect)", lineno, dir);
+            /* Silent accept — operator can see the directive in
+             * docs/config.md marked as v0.2.0+, and config_load
+             * runs before log_init can apply the user's log_level
+             * filter, so even a debug message would be visible on
+             * every CLI invocation. Better to say nothing. */
             return 0;
         }
     }
