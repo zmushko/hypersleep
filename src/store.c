@@ -147,7 +147,15 @@ hs_store_t *store_open(const char *path)
         free(s);
         return NULL;
     }
-    s->blob_mode = 0600;
+    /* 0644 (not 0600) so a hypersleep CLI run by any local user
+     * can read a blob created by the daemon. The store directory
+     * itself enforces access (operators put it behind 2750 + group
+     * ownership for shared hosts); the blob is content-addressed
+     * and read-only after write, so leaving it world-readable
+     * inside a protected store dir is fine. config's store-fmode
+     * directive overrides this default if a deployment needs
+     * tighter file-level mode bits. */
+    s->blob_mode = 0644;
     return s;
 }
 
