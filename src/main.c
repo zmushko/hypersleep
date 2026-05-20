@@ -105,8 +105,9 @@ int main(int argc, char **argv) {
 
     /* TODO: daemonize() if !foreground */
 
-    if (acquire_lock("/var/lib/hypersleep/lock") != 0) {
-        log_error("another hypersleepd is already running");
+    if (acquire_lock(cfg->lock_path) != 0) {
+        log_error("another hypersleepd is already running (lock: %s)",
+                  cfg->lock_path);
         config_free(cfg);
         return HS_EXIT_ERROR;
     }

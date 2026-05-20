@@ -48,6 +48,7 @@ index           $INDEX
 log             $LOG
 log-level       debug
 control-socket  $SOCK
+lock            $TMPROOT/lock
 debounce-ms     200
 queue-poll-ms   100
 

@@ -65,6 +65,7 @@ static int apply_defaults(hs_config_t *cfg)
     cfg->index_path     = xstrdup("/var/lib/hypersleep/index");
     cfg->log_path       = NULL;
     cfg->control_socket = xstrdup("/run/hypersleep/control.sock");
+    cfg->lock_path      = xstrdup("/var/lib/hypersleep/lock");
     cfg->log_level      = HS_LOG_INFO;
     cfg->inotify_max_watches_warn = 524288;
     cfg->debounce_ms    = 1500;
@@ -77,7 +78,7 @@ static int apply_defaults(hs_config_t *cfg)
     cfg->gc_after_prune = true;
 
     if (cfg->store_path == NULL || cfg->index_path == NULL
-        || cfg->control_socket == NULL) {
+        || cfg->control_socket == NULL || cfg->lock_path == NULL) {
         return -1;
     }
     return 0;
@@ -413,6 +414,10 @@ static int dispatch(hs_config_t *cfg, char *tokens[], int ntok, int lineno)
         if (ntok != 2) goto need_one;
         return replace_string(&cfg->control_socket, tokens[1]);
     }
+    if (!strcasecmp(dir, "lock")) {
+        if (ntok != 2) goto need_one;
+        return replace_string(&cfg->lock_path, tokens[1]);
+    }
     if (!strcasecmp(dir, "log-level")) {
         if (ntok != 2) goto need_one;
         return parse_log_level(tokens[1], &cfg->log_level, lineno);
@@ -649,6 +654,7 @@ void config_free(hs_config_t *cfg)
     free(cfg->index_path);
     free(cfg->log_path);
     free(cfg->control_socket);
+    free(cfg->lock_path);
 
     for (size_t i = 0; i < cfg->n_watches; i++) {
         free(cfg->watches[i].path);

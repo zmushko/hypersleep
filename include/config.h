@@ -47,6 +47,7 @@ typedef struct hs_config {
     char *index_path;
     char *log_path;
     char *control_socket;
+    char *lock_path;
 
     /* Logging */
     enum hs_log_level log_level;
