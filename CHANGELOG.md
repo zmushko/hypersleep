@@ -1,32 +1,46 @@
 # Changelog
 
-All notable changes to Renatum will be documented in this file.
+All notable changes to Hypersleep will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Project renamed from Renatum to Hypersleep.** Binaries
+  (`hypersleepd`, `hypersleep`), config (`/etc/hypersleep/hypersleep.conf`),
+  state (`/var/lib/hypersleep/`), logs (`/var/log/hypersleep/`),
+  systemd unit (`hypersleepd.service`), public header
+  (`include/hypersleep.h`), and identifier prefixes (`hs_`, `HS_`)
+  all updated. The old `renatum` / `RNT_` names are gone; users
+  upgrading from an installed Renatum will need to move state
+  directories and reconfigure systemd.
+- CLI verb `restore` renamed to `wake`; `prune` renamed to `purge`.
+  Other verbs (`status`, `log`, `show`, `diff`, `find`, `verify`,
+  `config`) are unchanged.
+
 ### TODO before v0.1.0 → v0.2.0
 
 - Stress tests in `tests/stress/` (deep_mkdir, atomic_save,
   IN_Q_OVERFLOW recovery, symlink_no_follow, recursive_move —
   mirroring the librnotify suite at one level up).
-- `renatum restore --force` CLI side: control-socket client,
+- `hypersleep wake --force` CLI side: control-socket client,
   interactive confirmation, post-write integrity verify loop.
-- `renatum find` — needs an index iterator over a path prefix
+- `hypersleep find` — needs an index iterator over a path prefix
   (or the whole files sub-DB) before it can serve `--name`,
   `--grep`, `--deleted`, etc.
-- `renatum restore-tree` and `renatum recover` (interactive).
-- `renatum gc` as a standalone command.
-- `renatum config reload` once main.c starts persisting the pid
+- `hypersleep wake-tree` and `hypersleep recover` (interactive).
+- `hypersleep gc` as a standalone command.
+- `hypersleep config reload` once main.c starts persisting the pid
   into the lock file.
-- Compression: optional zstd-framed blobs (RNT_FLAG_COMPRESSED
+- Compression: optional zstd-framed blobs (HS_FLAG_COMPRESSED
   already reserved in the schema).
-- Time-based selectors for `show`/`diff`/`restore` (`--at`,
+- Time-based selectors for `show`/`diff`/`wake` (`--at`,
   `--before`, `--by-sha`).
 - Audit pipeline: queue depth peak, last overflow ts, last GC
-  written into meta and surfaced by `renatum status`.
+  written into meta and surfaced by `hypersleep status`.
 
 ## [0.1.0] — 2026-05-19
 
@@ -42,7 +56,7 @@ versions, and restore one to a new path.
   log calls work before log_init.
 - `timeparse.c` — duration parser (`30d`, `12h`, `infinite`, …)
   with overflow guards.
-- `config.c` — full renatum.conf parser with line continuation,
+- `config.c` — full hypersleep.conf parser with line continuation,
   quoted-value tokens, post-pass resolution of retention-default
   and compress-default (directive order no longer matters).
 - `index.c` — LMDB-backed index with five sub-DBs (files, by_sha,
@@ -67,9 +81,9 @@ versions, and restore one to a new path.
 - `restore.c` — atomic CAS-to-filesystem extraction with
   mkstemp + fchmod/fchown/futimens + rename + fsync(parent).
 - `retention.c` — orphan-blob sweep after prune.
-- CLI: `renatum status`, `renatum log`, `renatum show`,
-  `renatum diff`, `renatum restore --to`, `renatum verify`,
-  `renatum prune --older-than`, `renatum config show/test/paths`.
+- CLI: `hypersleep status`, `hypersleep log`, `hypersleep show`,
+  `hypersleep diff`, `hypersleep wake --to`, `hypersleep verify`,
+  `hypersleep purge --older-than`, `hypersleep config show/test/paths`.
 - IN_Q_OVERFLOW rescan in the watcher + snapshot pipeline.
 - AT_NOFOLLOW audit pass — O_NOFOLLOW on every user- or
   config-supplied final path component (cmd_show --out, log
@@ -80,17 +94,17 @@ versions, and restore one to a new path.
 
 ### Known limitations
 
-- `renatum restore --force` is parsed but refuses with a clear
+- `hypersleep wake --force` is parsed but refuses with a clear
   message; the CLI side of the control-socket dance is in the
   v0.2.0 plan.
-- `renatum find` returns "not implemented" until the index
+- `hypersleep find` returns "not implemented" until the index
   grows a prefix iterator.
-- `renatum config reload` does not actually send SIGHUP yet —
+- `hypersleep config reload` does not actually send SIGHUP yet —
   main.c does not persist its pid into the lock file.
 - Compression is deferred to v1.1 per the project brief; all
   blobs are stored raw.
 - No stress test suite yet — librnotify's tests/ cover the
-  inotify layer, Renatum's own scenarios (atomic save, deep
+  inotify layer, Hypersleep's own scenarios (atomic save, deep
   mkdir, queue overflow) are still on the v0.2.0 list.
 
 ## [0.0.0]

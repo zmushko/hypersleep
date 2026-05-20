@@ -1,7 +1,7 @@
-# Renatum Configuration
+# Hypersleep Configuration
 
-Default location: `/etc/renatum/renatum.conf`
-Override with `--config <path>` on `renatum` or `renatumd`.
+Default location: `/etc/hypersleep/hypersleep.conf`
+Override with `--config <path>` on `hypersleep` or `hypersleepd`.
 
 ## Format
 
@@ -13,11 +13,11 @@ case-insensitive.
 ### Global
 
 ```
-storage   /var/lib/renatum/store
-index     /var/lib/renatum/index
-log       /var/log/renatum/renatumd.log
+storage   /var/lib/hypersleep/store
+index     /var/lib/hypersleep/index
+log       /var/log/hypersleep/hypersleepd.log
 log-level info                    # debug | info | warn | error
-control-socket /run/renatum/control.sock
+control-socket /run/hypersleep/control.sock
 ```
 
 ### Watch directives
@@ -64,29 +64,29 @@ store-fmode 0600                  # mode of new blobs
 ```
 retention-default 90d
 gc-after-prune yes
-auto-prune-schedule "03:00 daily" # if Renatum should self-schedule
+auto-prune-schedule "03:00 daily" # if Hypersleep should self-schedule
 ```
 
 ## Reloading
 
-`renatum config reload` sends SIGHUP to the daemon. Watch directives
+`hypersleep config reload` sends SIGHUP to the daemon. Watch directives
 diff: new paths get added, removed paths get unwatched, changed
 `exclude` patterns are re-applied. Storage and index paths cannot
 be changed without restart.
 
 ## Permissions
 
-The config file must be readable by the `renatumd` user (typically root,
+The config file must be readable by the `hypersleepd` user (typically root,
 but see `User=` in the systemd unit for dropping privileges).
 
-`storage` and `index` directories must be writable by `renatumd` and
-readable by anyone who should be able to run `renatum log/show/diff`.
-A common pattern: `chgrp renatum /var/lib/renatum && chmod 2750
-/var/lib/renatum`, then add users to the `renatum` group.
+`storage` and `index` directories must be writable by `hypersleepd` and
+readable by anyone who should be able to run `hypersleep log/show/diff`.
+A common pattern: `chgrp hypersleep /var/lib/hypersleep && chmod 2750
+/var/lib/hypersleep`, then add users to the `hypersleep` group.
 
 ## Validation
 
-`renatum config test` checks:
+`hypersleep config test` checks:
 - Syntax
 - Storage and index paths exist and are writable
 - All `watch` paths exist

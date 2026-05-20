@@ -1,4 +1,4 @@
-# Renatum Architecture
+# Hypersleep Architecture
 
 ## High-level dataflow
 
@@ -37,7 +37,7 @@
                                              │
                                      ┌───────┴────────┐
                                      │    cli.c       │
-                                     │  (renatum CLI) │
+                                     │  (hypersleep CLI) │
                                      └────────────────┘
 ```
 
@@ -45,22 +45,22 @@
 
 Two binaries share one storage:
 
-1. **renatumd** — long-running daemon. Owns the librnotify subscription,
+1. **hypersleepd** — long-running daemon. Owns the librnotify subscription,
    debouncer, and a writer LMDB txn. Started by systemd.
 
-2. **renatum** — CLI tool. Opens the LMDB environment read-only (or with
+2. **hypersleep** — CLI tool. Opens the LMDB environment read-only (or with
    short write txns for restore operations that update metadata).
    Communicates with the daemon only through the filesystem (LMDB and CAS).
 
 There is **no IPC** between CLI and daemon for v1. LMDB's multi-reader /
 single-writer model handles concurrent access. The daemon holds an
-advisory flock on `/var/lib/renatum/lock` to prevent two daemons running
+advisory flock on `/var/lib/hypersleep/lock` to prevent two daemons running
 simultaneously.
 
 ## Storage layout on disk
 
 ```
-/var/lib/renatum/
+/var/lib/hypersleep/
 ├── store/                                # CAS blobs
 │   ├── a3/
 │   │   ├── f291b4...e9c2                 # blob: raw bytes or zstd frame
@@ -73,11 +73,11 @@ simultaneously.
 ├── lock                                  # daemon flock target
 └── log                                   # rotated text log
 
-/etc/renatum/
-└── renatum.conf
+/etc/hypersleep/
+└── hypersleep.conf
 
-/var/log/renatum/                         # if rsyslog/journald not used
-└── renatumd.log
+/var/log/hypersleep/                         # if rsyslog/journald not used
+└── hypersleepd.log
 ```
 
 ## LMDB schema
@@ -113,7 +113,7 @@ struct file_entry_v1 {
 };
 ```
 
-**Why this key design:** ranges like `renatum log /home/andrey/foo.c` map
+**Why this key design:** ranges like `hypersleep log /home/andrey/foo.c` map
 to `MDB_SET_RANGE` on the path prefix, then sequential `MDB_NEXT` while
 the path matches. O(log N) seek + O(k) scan where k is the number of
 versions.
@@ -139,7 +139,7 @@ struct deletion_v1 {
 };
 ```
 
-Records `IN_DELETE` / `IN_DELETE_SELF` events. Used by `renatum recover`
+Records `IN_DELETE` / `IN_DELETE_SELF` events. Used by `hypersleep recover`
 to surface deleted files.
 
 ### `moves` sub-DB
@@ -270,27 +270,27 @@ When the inotify queue overflows, an `IN_Q_OVERFLOW` event arrives with
    against LMDB's latest entry for that path.
 3. If mismatch, compute SHA and capture as if it were a `IN_CLOSE_WRITE`.
 
-This is the **fallback** that ensures Renatum never permanently loses an
+This is the **fallback** that ensures Hypersleep never permanently loses an
 event. Rescan logs how many files were captured as a result.
 
-### `renatum verify`
+### `hypersleep verify`
 
 Walks every blob in the CAS and recomputes its SHA. Mismatches indicate
 corruption. By default, a corrupted blob is left in place but logged; with
 `--repair`, the blob is renamed to `.corrupt-<timestamp>` and removed from
 `by_sha`, making the dependent `files` entries dangling (still listed in
-`renatum log`, but `restore` will fail with a clear message).
+`hypersleep log`, but `wake` will fail with a clear message).
 
-### `renatum gc`
+### `hypersleep gc`
 
 Walks `by_sha` sub-DB. For each SHA with refcount=0, removes the blob from
 disk. Optionally runs `lmdb_copy --compact` to shrink the index.
 
 ## Concurrency model
 
-- **Single writer to LMDB:** only `renatumd` writes. The CLI opens
+- **Single writer to LMDB:** only `hypersleepd` writes. The CLI opens
   read-only transactions for `log`, `show`, `diff`, `find`.
-- **Exception:** `renatum restore --force` performs a pre-snapshot, which
+- **Exception:** `hypersleep wake --force` performs a pre-snapshot, which
   requires a write transaction. To avoid contention, the CLI sends a
   Unix domain socket message to the daemon ("please snapshot path X now")
   and waits for ack. The daemon snapshots in its writer txn. CLI then
@@ -303,7 +303,7 @@ LMDB.
 
 ### Socket protocol (sketch)
 
-`/run/renatum/control.sock` — Unix datagram socket.
+`/run/hypersleep/control.sock` — Unix datagram socket.
 
 Request:
 ```
@@ -325,7 +325,7 @@ logs a warning. The user can force the operation with
 
 - Steady-state CPU: < 1% with a 10k-file watched tree, sporadic edits
 - Per-snapshot latency: < 50 ms for files up to 1 MB
-- LMDB lookup: < 1 ms for `renatum log <path>` on a 100k-entry index
+- LMDB lookup: < 1 ms for `hypersleep log <path>` on a 100k-entry index
 - Memory footprint: < 20 MB RSS for daemon under steady state
 - Cold-start scan of 100k files: < 30 seconds
 

@@ -1,4 +1,4 @@
-# Renatum CLI Specification
+# Hypersleep CLI Specification
 
 > All commands return:
 > - exit 0 on success
@@ -18,15 +18,15 @@ All commands accept:
 - `--config <path>` — alternative config file
 - `--help` — usage
 
-## `renatum status`
+## `hypersleep status`
 
 ```
-$ renatum status
+$ hypersleep status
 
-renatumd: running (pid 4231, uptime 3d 14h)
-config:   /etc/renatum/renatum.conf
-store:    /var/lib/renatum/store  (1.2 GB, 18,432 blobs)
-index:    /var/lib/renatum/index  (84 MB, 47,213 entries)
+hypersleepd: running (pid 4231, uptime 3d 14h)
+config:   /etc/hypersleep/hypersleep.conf
+store:    /var/lib/hypersleep/store  (1.2 GB, 18,432 blobs)
+index:    /var/lib/hypersleep/index  (84 MB, 47,213 entries)
 
 watching 4 paths:
   /home/andrey/projects     12,847 files, 8,231 dirs    [active]
@@ -42,12 +42,12 @@ queue depth:    0  (peak 1h: 23)
 Flags:
 - `--json` — structured output for automation
 
-## `renatum log`
+## `hypersleep log`
 
 List versions of a path.
 
 ```
-$ renatum log /home/andrey/projects/foo.c
+$ hypersleep log /home/andrey/projects/foo.c
 
 VERSION  CAPTURED              SIZE      SHA       EVENT
 v7       2026-05-18 11:23:04   2.4 KB    a3f291b4  modify
@@ -69,15 +69,15 @@ Flags:
 - `--follow-renames` — trace history across `mv` operations (via cookies)
 - `--show-deleted` — include deletion markers (default: yes)
 
-## `renatum show`
+## `hypersleep show`
 
 Print the contents of a version to stdout. Never writes to the original path.
 
 ```
-$ renatum show /home/andrey/projects/foo.c v5 | less
-$ renatum show /home/andrey/projects/foo.c --at "yesterday 14:00"
-$ renatum show /home/andrey/projects/foo.c --at 1715949000  # unix epoch
-$ renatum show /home/andrey/projects/foo.c --before "today 09:00"
+$ hypersleep show /home/andrey/projects/foo.c v5 | less
+$ hypersleep show /home/andrey/projects/foo.c --at "yesterday 14:00"
+$ hypersleep show /home/andrey/projects/foo.c --at 1715949000  # unix epoch
+$ hypersleep show /home/andrey/projects/foo.c --before "today 09:00"
 ```
 
 Selectors (mutually exclusive, exactly one required):
@@ -88,20 +88,20 @@ Selectors (mutually exclusive, exactly one required):
 
 Flags:
 - `--out <path>` — write to file instead of stdout (path MUST NOT equal
-  the original watched path; use `restore` for that)
+  the original watched path; use `wake` for that)
 - `--no-decompress` — for compressed blobs, emit the raw compressed frame
 
 For binary files, `show` writes raw bytes. The user is responsible for
 piping to appropriate tools.
 
-## `renatum diff`
+## `hypersleep diff`
 
 Textual diff between versions, or between a version and the working copy.
 
 ```
-$ renatum diff /home/andrey/projects/foo.c v3 v5
-$ renatum diff /home/andrey/projects/foo.c v5           # v5 vs disk
-$ renatum diff /home/andrey/projects/foo.c \
+$ hypersleep diff /home/andrey/projects/foo.c v3 v5
+$ hypersleep diff /home/andrey/projects/foo.c v5           # v5 vs disk
+$ hypersleep diff /home/andrey/projects/foo.c \
       --from "yesterday 09:00" --to "today 11:00"
 ```
 
@@ -115,23 +115,23 @@ Flags:
 For binary files: prints `Binary files differ: vA=<size>, vB=<size>` and
 nothing else.
 
-## `renatum restore`
+## `hypersleep wake`
 
 Destructive operation. Multiple safety checks.
 
 ```
 # Safe: write to a new location
-$ renatum restore /home/andrey/projects/foo.c v5 --to /tmp/foo.recovered.c
+$ hypersleep wake /home/andrey/projects/foo.c v5 --to /tmp/foo.recovered.c
 
 # Destructive: overwrite original (requires --force)
-$ renatum restore /home/andrey/projects/foo.c v5 --force
+$ hypersleep wake /home/andrey/projects/foo.c v5 --force
 
 # By time
-$ renatum restore /home/andrey/projects/foo.c \
+$ hypersleep wake /home/andrey/projects/foo.c \
       --at "yesterday 14:00" --to /tmp/foo.old.c
 
 # Dry run
-$ renatum restore /home/andrey/projects/foo.c v5 --force --dry-run
+$ hypersleep wake /home/andrey/projects/foo.c v5 --force --dry-run
 ```
 
 Selectors: same as `show` (`<vN>`, `--at`, `--before`, `--by-sha`).
@@ -152,21 +152,21 @@ Flags:
   captured version (default: yes for `--force`, no for `--to`)
 - `--dry-run` — print what would be done, change nothing
 
-## `renatum restore-tree`
+## `hypersleep wake-tree`
 
 Restore a subtree to its state at a given time.
 
 ```
-$ renatum restore-tree /home/andrey/projects/ \
+$ hypersleep wake-tree /home/andrey/projects/ \
       --at "yesterday 14:00" --to /tmp/yesterday-snapshot/
 
-$ renatum restore-tree /home/andrey/projects/ \
+$ hypersleep wake-tree /home/andrey/projects/ \
       --at "yesterday 14:00" --in-place
 
-$ renatum restore-tree /home/andrey/projects/ \
+$ hypersleep wake-tree /home/andrey/projects/ \
       --at "yesterday" --only-missing --to /tmp/recovered/
 
-$ renatum restore-tree /home/andrey/projects/ --at "yesterday" --dry-run
+$ hypersleep wake-tree /home/andrey/projects/ --at "yesterday" --dry-run
 ```
 
 Required: one of `--to <dir>` OR `--in-place`.
@@ -181,16 +181,16 @@ Flags:
 - `--include <pattern>` / `--exclude <pattern>` — glob filters
 - `--dry-run` — list operations without performing them
 
-Before any `--in-place` operation, Renatum captures the current state of
+Before any `--in-place` operation, Hypersleep captures the current state of
 the entire affected subtree as a series of snapshots, so the action is
 reversible.
 
-## `renatum recover`
+## `hypersleep recover`
 
 Interactive recovery mode for stressful situations.
 
 ```
-$ renatum recover /home/andrey/projects/foo.c
+$ hypersleep recover /home/andrey/projects/foo.c
 
 Found 7 versions of foo.c:
 
@@ -209,17 +209,17 @@ Found 7 versions of foo.c:
 Designed to be usable over plain SSH (no full TTY required, no ncurses).
 Always confirms before destructive actions.
 
-## `renatum find`
+## `hypersleep find`
 
 Search across the history.
 
 ```
-$ renatum find --name "*.conf"
-$ renatum find --name "nginx*" --since "last week"
-$ renatum find --grep "DATABASE_PASSWORD" --paths "/etc/**"
-$ renatum find --deleted --since "last month"
-$ renatum find --size +10MB --until "yesterday"
-$ renatum find --by-sha 5fb22e8c     # partial SHA prefix
+$ hypersleep find --name "*.conf"
+$ hypersleep find --name "nginx*" --since "last week"
+$ hypersleep find --grep "DATABASE_PASSWORD" --paths "/etc/**"
+$ hypersleep find --deleted --since "last month"
+$ hypersleep find --size +10MB --until "yesterday"
+$ hypersleep find --by-sha 5fb22e8c     # partial SHA prefix
 ```
 
 Flags:
@@ -233,18 +233,18 @@ Flags:
 - `--by-sha <prefix>` — find by content hash prefix
 - `--format json` — machine output
 
-## `renatum prune`
+## `hypersleep purge`
 
 Remove old versions according to retention policy.
 
 ```
-$ renatum prune --older-than 30d
-$ renatum prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
-$ renatum prune --path /tmp/builds --older-than 1d  # path-specific
-$ renatum prune --dry-run
+$ hypersleep purge --older-than 30d
+$ hypersleep purge --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+$ hypersleep purge --path /tmp/builds --older-than 1d  # path-specific
+$ hypersleep purge --dry-run
 ```
 
-After pruning index entries, `prune` invokes the GC to delete unreferenced
+After pruning index entries, `purge` invokes the GC to delete unreferenced
 blobs.
 
 Flags:
@@ -254,43 +254,43 @@ Flags:
 - `--dry-run` — report what would be pruned
 - `--no-gc` — don't run blob GC after pruning (useful in scripts)
 
-## `renatum gc`
+## `hypersleep gc`
 
 Garbage-collect unreferenced blobs from the CAS.
 
 ```
-$ renatum gc
-$ renatum gc --compact   # also compact the LMDB file
-$ renatum gc --dry-run
+$ hypersleep gc
+$ hypersleep gc --compact   # also compact the LMDB file
+$ hypersleep gc --dry-run
 ```
 
-Run automatically after `prune` unless `--no-gc` was given. Safe to
+Run automatically after `purge` unless `--no-gc` was given. Safe to
 interrupt; partial GC just leaves more blobs for the next pass.
 
-## `renatum verify`
+## `hypersleep verify`
 
 Check integrity of the store and index.
 
 ```
-$ renatum verify                  # check everything
-$ renatum verify --quick          # sample-based, faster
-$ renatum verify --repair         # quarantine corrupt blobs
-$ renatum verify --path foo.c     # verify a specific path's history
+$ hypersleep verify                  # check everything
+$ hypersleep verify --quick          # sample-based, faster
+$ hypersleep verify --repair         # quarantine corrupt blobs
+$ hypersleep verify --path foo.c     # verify a specific path's history
 ```
 
 For each blob: re-compute SHA, compare to filename. For each index entry:
 verify the referenced blob exists. Reports a final tally and exits 6 if
 anything failed (unless `--repair`).
 
-## `renatum config`
+## `hypersleep config`
 
 Inspect or test the configuration.
 
 ```
-$ renatum config show          # dump effective config
-$ renatum config test          # validate config syntax + permissions
-$ renatum config paths         # list configured watch paths
-$ renatum config reload        # signal daemon to reload (SIGHUP)
+$ hypersleep config show          # dump effective config
+$ hypersleep config test          # validate config syntax + permissions
+$ hypersleep config paths         # list configured watch paths
+$ hypersleep config reload        # signal daemon to reload (SIGHUP)
 ```
 
 ## Time expression syntax

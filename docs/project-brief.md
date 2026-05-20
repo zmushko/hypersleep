@@ -1,13 +1,13 @@
-# Renatum — Project Brief
+# Hypersleep — Project Brief
 
 > **Read this first.** This document captures the design decisions and
-> rationale for Renatum. If you (or an AI assistant such as Claude Code)
+> rationale for Hypersleep. If you (or an AI assistant such as Claude Code)
 > are picking up this project, read this before touching code. It will
 > save hours of re-deriving conclusions.
 
 ## Origin story
 
-Renatum was born from two starting points:
+Hypersleep was born from two starting points:
 
 1. **librnotify** — a recursive inotify wrapper in pure C, written by the
    same author for a NETGEAR NAS commercial project around 2013–2014.
@@ -22,21 +22,11 @@ Renatum was born from two starting points:
    The thought of writing yet another `inotifywait | rsync` script "the
    right way" was itself off-putting.
 
-Renatum is the answer: a small, native daemon that continuously captures
+Hypersleep is the answer: a small, native daemon that continuously captures
 file changes the moment they happen, with a clean CLI for finding and
 restoring past versions.
 
-## The semantic name
-
-*Renatum* is the Latin neuter past participle of *renasci*, meaning
-"reborn" or "born again." Theologically loaded (cf. *renatus ex aqua et
-Spiritu*, "born again from water and Spirit"), but in our context the
-metaphor is operational: every `restore` is a rebirth of a file's prior
-state. The name was chosen after rejecting ~13 alternatives in the
-`kine-`, `motif-`, `ethon-`, `habitus-` families, all of which were
-either occupied in IT or carried conflicting connotations.
-
-## What problem Renatum solves
+## What problem Hypersleep solves
 
 Linux has many backup tools. None of them does exactly this combination:
 
@@ -58,18 +48,18 @@ Linux has many backup tools. None of them does exactly this combination:
          FOSS, not enterprise
 ```
 
-Each property exists in some tool. The intersection does not — until Renatum.
+Each property exists in some tool. The intersection does not — until Hypersleep.
 
 ## Positioning vs neighbours
 
-Renatum is **not a competitor** to `restic`, `borg`, `kopia`, or
+Hypersleep is **not a competitor** to `restic`, `borg`, `kopia`, or
 `duplicati`. They do scheduled, encrypted, deduplicated, off-site backups.
-Renatum protects the **gap between** their runs — the file you deleted at
+Hypersleep protects the **gap between** their runs — the file you deleted at
 14:32 when the next `borg create` is scheduled at 18:00.
 
 Recommended deployment pattern:
 
-- **Renatum** — continuous local versioning, single machine
+- **Hypersleep** — continuous local versioning, single machine
 - **Borg/Restic** — periodic encrypted off-site (S3, remote SSH)
 - **Btrfs/ZFS snapshots** — atomic mount-point snapshots for system rollback
 - **Syncthing** — cross-machine file synchronization (not backup)
@@ -91,7 +81,7 @@ it for embedded deployment.
 
 **Rationale:** already exists, production-tested in NETGEAR NAS, solves the
 recursive race condition that other wrappers ignore. Linking it via
-git submodule keeps Renatum's repo light while allowing coordinated
+git submodule keeps Hypersleep's repo light while allowing coordinated
 development.
 
 **Key feature being leveraged:** when a new directory is created during
@@ -102,7 +92,7 @@ language bindings (older fsnotify, naive pyinotify) leave open.
 
 **Known trade-off:** the readdir-after-add-watch approach can produce
 **duplicate `IN_CREATE` events** when both the directory and its children
-were already in the inotify queue. Renatum handles this on the consumer
+were already in the inotify queue. Hypersleep handles this on the consumer
 side (see Decision 5).
 
 ### Decision 3: LMDB for the index
@@ -146,13 +136,13 @@ DB: meta           key: arbitrary config keys
 ```
 
 Path is stored as a variable-length prefix in the key, allowing efficient
-range scans (`renatum log /some/path` becomes `mdb_cursor_get(MDB_SET_RANGE)`
+range scans (`hypersleep log /some/path` becomes `mdb_cursor_get(MDB_SET_RANGE)`
 followed by sequential reads until the path prefix changes).
 
 ### Decision 4: content-addressable storage on the filesystem
 
 **Rationale:** simplest possible storage layer. Every captured blob lives at
-`/var/lib/renatum/store/<sha[0:2]>/<sha[2:]>` (raw bytes or zstd-compressed).
+`/var/lib/hypersleep/store/<sha[0:2]>/<sha[2:]>` (raw bytes or zstd-compressed).
 Free deduplication: writing the same content twice is a no-op (already
 exists). Easy to verify (recompute SHA, compare to path). Easy to GC
 (walk LMDB by_sha refcounts, delete unreferenced).
@@ -175,7 +165,7 @@ reasons (race-condition closing) or for noise reasons (atomic-save patterns
 like vim's `swap → rename`). Trying to deduplicate at the event layer is
 fragile and policy-heavy.
 
-Instead, Renatum makes the **storage layer idempotent**:
+Instead, Hypersleep makes the **storage layer idempotent**:
 
 1. On any candidate event (`IN_CLOSE_WRITE`, `IN_MOVED_TO`), compute the
    target file's SHA-256.
@@ -200,15 +190,15 @@ an event arrives, the path is queued with a timer. New events on the same
 path reset the timer. When the timer fires, the *current* state of the
 file is snapshotted once.
 
-This means Renatum captures **stable states**, not transient ones.
+This means Hypersleep captures **stable states**, not transient ones.
 
 ### Decision 7: pre-snapshot before destructive restore
 
-**Rationale:** `renatum restore --force` overwrites a file in place. If the
+**Rationale:** `hypersleep wake --force` overwrites a file in place. If the
 current on-disk state has not yet been captured (e.g., daemon was stopped),
 that state would be lost forever.
 
-**Solution:** before any `--force` restore, Renatum first captures the
+**Solution:** before any `--force` restore, Hypersleep first captures the
 current state synchronously (if it differs from the latest known version),
 then performs the restore. The user's "previous current state" is always
 recoverable as the most recent version in history.
@@ -217,17 +207,17 @@ Flag `--no-pre-snapshot` is available for users who know what they're doing.
 
 ### Decision 8: stdout-by-default for `show`
 
-**Rationale:** `renatum show <path> v5` writes to **stdout**, not back to
+**Rationale:** `hypersleep show <path> v5` writes to **stdout**, not back to
 the original path. This is the same convention as `git show`, `cat`, and
 all read-side Unix tools. It enables:
 
 ```bash
-renatum show foo.c v5 | less
-renatum show foo.c v5 | diff foo.c -
-renatum show foo.c v5 > /tmp/foo.c.bak
+hypersleep show foo.c v5 | less
+hypersleep show foo.c v5 | diff foo.c -
+hypersleep show foo.c v5 > /tmp/foo.c.bak
 ```
 
-To actually restore in place, the user types `renatum restore` — a
+To actually restore in place, the user types `hypersleep wake` — a
 different, explicitly destructive verb.
 
 ### Decision 9: human-readable version IDs (v1, v2, ...) externally
@@ -248,10 +238,10 @@ These must be preserved by all code:
 
 1. **AT_NOFOLLOW everywhere.** Use `lstat`, `openat` with `O_NOFOLLOW`,
    `unlinkat` with `AT_SYMLINK_NOFOLLOW`. An attacker with write access to
-   a watched directory must not be able to make Renatum snapshot
+   a watched directory must not be able to make Hypersleep snapshot
    `/etc/shadow` via a planted symlink.
 
-2. **No silent data loss on storage exhaustion.** If `/var/lib/renatum/`
+2. **No silent data loss on storage exhaustion.** If `/var/lib/hypersleep/`
    fills up, the daemon must **log loudly** and continue accepting events
    (queue them, drop synthetic snapshots gracefully) — not crash. A
    backup daemon that dies when the disk fills is worse than no daemon.
@@ -261,7 +251,7 @@ These must be preserved by all code:
    for the index. Power-loss must leave the store in a valid state.
 
 4. **`IN_Q_OVERFLOW` must trigger a rescan.** If the inotify queue
-   overflows, events are lost. Renatum responds by walking each watched
+   overflows, events are lost. Hypersleep responds by walking each watched
    subtree and synthesizing events for any files whose `(path, mtime,
    size)` does not match the latest LMDB entry. Log the incident.
 
@@ -273,7 +263,7 @@ These must be preserved by all code:
 ## Out of scope (for now)
 
 - Encryption at rest (use LUKS or add in v2)
-- Remote storage (use Borg/Restic for off-site; Renatum is local)
+- Remote storage (use Borg/Restic for off-site; Hypersleep is local)
 - Content-defined chunking (whole-file is fine for v1)
 - Cross-machine sync (use Syncthing)
 - GUI (Unix-way; third parties can write wrappers)
@@ -286,22 +276,22 @@ Full spec in [cli-spec.md](cli-spec.md). One-line summaries:
 
 | Command | Effect |
 |---|---|
-| `renatum status` | daemon health, watched paths, store size |
-| `renatum log <path>` | list versions of a file |
-| `renatum show <path> v<N>` | print version contents to stdout |
-| `renatum diff <path> v<A> v<B>` | textual diff between versions |
-| `renatum restore <path> v<N> --to <new>` | safe restore to a new location |
-| `renatum restore <path> v<N> --force` | destructive in-place restore (with pre-snapshot) |
-| `renatum restore-tree <dir> --at <time>` | restore a whole subtree as it was |
-| `renatum recover <path>` | interactive recovery mode |
-| `renatum find --name PATTERN` | search the history |
-| `renatum prune --older-than 30d` | garbage-collect old versions |
-| `renatum verify` | re-hash all blobs, check store integrity |
+| `hypersleep status` | daemon health, watched paths, store size |
+| `hypersleep log <path>` | list versions of a file |
+| `hypersleep show <path> v<N>` | print version contents to stdout |
+| `hypersleep diff <path> v<A> v<B>` | textual diff between versions |
+| `hypersleep wake <path> v<N> --to <new>` | safe restore to a new location |
+| `hypersleep wake <path> v<N> --force` | destructive in-place restore (with pre-snapshot) |
+| `hypersleep wake-tree <dir> --at <time>` | restore a whole subtree as it was |
+| `hypersleep recover <path>` | interactive recovery mode |
+| `hypersleep find --name PATTERN` | search the history |
+| `hypersleep purge --older-than 30d` | garbage-collect old versions |
+| `hypersleep verify` | re-hash all blobs, check store integrity |
 
 ## Repository layout
 
 ```
-renatum/
+hypersleep/
 ├── README.md
 ├── LICENSE                       (Apache-2.0)
 ├── Makefile
@@ -315,7 +305,7 @@ renatum/
 │   └── recovery.md
 │
 ├── include/
-│   ├── renatum.h
+│   ├── hypersleep.h
 │   ├── store.h
 │   ├── index.h
 │   ├── watcher.h
@@ -325,8 +315,8 @@ renatum/
 │   └── log.h
 │
 ├── src/
-│   ├── main.c                    (renatumd entry)
-│   ├── cli.c                     (renatum CLI entry)
+│   ├── main.c                    (hypersleepd entry)
+│   ├── cli.c                     (hypersleep CLI entry)
 │   ├── watcher.c                 (librnotify subscription)
 │   ├── debounce.c
 │   ├── snapshot.c                (file → CAS pipeline)
@@ -334,7 +324,7 @@ renatum/
 │   ├── store.c                   (CAS storage on disk)
 │   ├── index.c                   (LMDB operations)
 │   ├── retention.c               (prune policies)
-│   ├── config.c                  (parser for renatum.conf)
+│   ├── config.c                  (parser for hypersleep.conf)
 │   └── log.c
 │
 ├── tests/
@@ -347,11 +337,11 @@ renatum/
 │       └── parallel_writes.sh
 │
 ├── etc/
-│   └── renatum.conf.example
+│   └── hypersleep.conf.example
 │
 ├── systemd/
-│   ├── renatumd.service
-│   └── renatum-prune.timer
+│   ├── hypersleepd.service
+│   └── hypersleep-prune.timer
 │
 └── third_party/
     └── librnotify/               (git submodule)
@@ -372,13 +362,6 @@ Runtime: Linux ≥ 4.11 (for `statx`-style birth-time, optional); kernel
 inotify support (any modern kernel).
 
 ## Notes for future Claude (or future Andrey)
-
-The full design conversation that produced this document covered many
-abandoned naming candidates (KineKit, Kinikit, Kinio, Motiq, Kinedge,
-Kineye, Kinegraph, Kinicam, Anuratum, Ranatum, Ethon, Habitus, Kenio
-and others). All of those are documented as rejected because of
-existing trademark conflicts, semantic mismatches, or unfortunate
-phonetic interpretations across languages.
 
 The author lives in Turkey (Manavgat area), is Belarusian by origin,
 prefers vi over nano, writes in C, deploys on Raspberry Pi class
