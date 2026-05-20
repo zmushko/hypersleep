@@ -43,20 +43,26 @@ static int fsync_retry(int fd)
 int restore_to(hs_store_t *store,
                const hs_version_t *v,
                const char *dst,
-               bool preserve_mode)
+               bool preserve_mode,
+               bool overwrite)
 {
     if (store == NULL || v == NULL || dst == NULL) {
         errno = EINVAL;
         return -1;
     }
 
-    /* Reject pre-existing target up front. The atomic-rename below
-     * cannot enforce O_EXCL across the link; the caller wants a
-     * clear refusal rather than a clobber. */
-    struct stat dst_st;
-    if (lstat(dst, &dst_st) == 0) {
-        errno = EEXIST;
-        return -1;
+    /* Without overwrite, refuse a pre-existing dst up front. The
+     * atomic-rename below cannot enforce O_EXCL across the link;
+     * the caller wants a clear refusal rather than a clobber. With
+     * overwrite=true the caller (typically `wake --force` after a
+     * daemon-side pre-snapshot) accepts that dst will be
+     * atomically replaced. */
+    if (!overwrite) {
+        struct stat dst_st;
+        if (lstat(dst, &dst_st) == 0) {
+            errno = EEXIST;
+            return -1;
+        }
     }
 
     /* dirname() may modify its input. Work on a copy. */

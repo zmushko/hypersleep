@@ -56,6 +56,7 @@ CLI_SRCS := \
     src/cmd_purge.c \
     src/cmd_verify.c \
     src/cmd_config.c \
+    src/control_client.c \
     src/restore.c \
     src/retention.c
 
