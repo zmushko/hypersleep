@@ -11,6 +11,7 @@
  * deferred.
  */
 
+#include "cli_path.h"
 #include "config.h"
 #include "index.h"
 #include "log.h"
@@ -90,11 +91,17 @@ int cmd_log(int argc, char **argv, const hs_config_t *cfg)
         fprintf(stderr, "hypersleep log: missing <path>\n");
         return HS_EXIT_USAGE;
     }
-    const char *path = argv[optind];
+    char *path = cli_resolve_path(argv[optind]);
+    if (path == NULL) {
+        fprintf(stderr, "hypersleep log: cannot resolve %s: %s\n",
+                argv[optind], strerror(errno));
+        return HS_EXIT_NOTFOUND;
+    }
 
     hs_index_t *idx = index_open(cfg->index_path, HS_IDX_READ);
     if (idx == NULL) {
         fprintf(stderr, "hypersleep log: cannot open index\n");
+        free(path);
         return HS_EXIT_ERROR;
     }
 
@@ -156,5 +163,6 @@ int cmd_log(int argc, char **argv, const hs_config_t *cfg)
     }
 
     free(list);
+    free(path);
     return HS_EXIT_OK;
 }

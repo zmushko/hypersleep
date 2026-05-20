@@ -21,6 +21,7 @@
  * with cmd_show's extension.
  */
 
+#include "cli_path.h"
 #include "config.h"
 #include "control_client.h"
 #include "index.h"
@@ -174,7 +175,12 @@ int cmd_wake(int argc, char **argv, const hs_config_t *cfg)
         fprintf(stderr, "hypersleep wake: missing <path> v<N>\n");
         return HS_EXIT_USAGE;
     }
-    const char *path = argv[optind];
+    char *path = cli_resolve_path(argv[optind]);
+    if (path == NULL) {
+        fprintf(stderr, "hypersleep wake: cannot resolve %s: %s\n",
+                argv[optind], strerror(errno));
+        return HS_EXIT_NOTFOUND;
+    }
     int want_n = 0;
     if (parse_vn(argv[optind + 1], &want_n) < 0) {
         fprintf(stderr, "hypersleep wake: invalid '%s' (expected vN)\n",

@@ -17,6 +17,7 @@
  *   1  (HS_EXIT_ERROR) from us on any preparation failure
  */
 
+#include "cli_path.h"
 #include "config.h"
 #include "index.h"
 #include "log.h"
@@ -154,7 +155,12 @@ int cmd_diff(int argc, char **argv, const hs_config_t *cfg)
         fprintf(stderr, "Usage: hypersleep diff <path> v<A> [v<B>]\n");
         return HS_EXIT_USAGE;
     }
-    const char *path = argv[1];
+    char *path = cli_resolve_path(argv[1]);
+    if (path == NULL) {
+        fprintf(stderr, "hypersleep diff: cannot resolve %s: %s\n",
+                argv[1], strerror(errno));
+        return HS_EXIT_NOTFOUND;
+    }
     int vA = 0, vB = 0;
     bool have_B = false;
     if (parse_vn(argv[2], &vA) < 0) {

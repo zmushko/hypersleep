@@ -9,6 +9,7 @@
  * --by-sha selectors and --no-decompress flag are deferred.
  */
 
+#include "cli_path.h"
 #include "config.h"
 #include "index.h"
 #include "log.h"
@@ -129,7 +130,12 @@ int cmd_show(int argc, char **argv, const hs_config_t *cfg)
         fprintf(stderr, "hypersleep show: missing <path> v<N>\n");
         return HS_EXIT_USAGE;
     }
-    const char *path = argv[optind];
+    char *path = cli_resolve_path(argv[optind]);
+    if (path == NULL) {
+        fprintf(stderr, "hypersleep show: cannot resolve %s: %s\n",
+                argv[optind], strerror(errno));
+        return HS_EXIT_NOTFOUND;
+    }
     int want_n = 0;
     if (parse_vn(argv[optind + 1], &want_n) < 0) {
         fprintf(stderr,
