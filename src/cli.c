@@ -67,11 +67,20 @@ static void usage(void) {
 int main(int argc, char **argv) {
     const char *config_path = "/etc/hypersleep/hypersleep.conf";
 
-    /* Pre-scan for --config since getopt doesn't see subcommand args */
+    /* Strip a leading `--config FILE` / `-c FILE` so subcommand
+     * dispatch and per-subcommand getopt parse only the command
+     * and its own flags. Two-step: find it, then shift argv by 2.
+     * If the user puts it AFTER the subcommand we leave it alone
+     * — subcommands could implement their own --config in
+     * principle, though none do today. */
     for (int i = 1; i < argc - 1; i++) {
         if (strcmp(argv[i], "--config") == 0
          || strcmp(argv[i], "-c") == 0) {
             config_path = argv[i + 1];
+            for (int j = i; j + 2 <= argc; j++) {
+                argv[j] = argv[j + 2];
+            }
+            argc -= 2;
             break;
         }
     }
