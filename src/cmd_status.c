@@ -47,22 +47,25 @@ static void format_bytes(uint64_t n, char *out, size_t cap)
     else        snprintf(out, cap, "%.1f %s", v, units[u]);
 }
 
-/* Read the daemon pid from a flock'd lock file. Returns the pid if
- * the file is locked (daemon running), 0 if not locked, -1 on error. */
-static int daemon_pid(const char *lock_path)
+/* Probe the daemon's lock file. Three-valued return:
+ *    1  the lock is held by someone (i.e. daemon running)
+ *    0  the lock is free (daemon not running)
+ *   -1  cannot tell (permission denied, file missing, …) — the
+ *      lock file is typically 0600 root, so a non-root CLI gets
+ *      EACCES even when the daemon is up; we surface that as
+ *      "unknown" instead of asserting "not running". */
+static int daemon_status(const char *lock_path)
 {
-    int fd = open(lock_path, O_RDONLY);
-    if (fd < 0) return 0;
+    int fd = open(lock_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return (errno == ENOENT) ? 0 : -1;
+    }
     if (flock(fd, LOCK_SH | LOCK_NB) == 0) {
-        /* Acquired a shared lock — nobody holds it exclusively. */
         flock(fd, LOCK_UN);
         close(fd);
         return 0;
     }
-    /* Couldn't acquire — daemon has it. */
     close(fd);
-    /* We do not know the daemon's pid without writing it to the
-     * lock file (main.c does not), so just signal "running". */
     return 1;
 }
 
@@ -71,11 +74,15 @@ int cmd_status(int argc, char **argv, const hs_config_t *cfg)
     (void)argc; (void)argv;
     if (cfg == NULL) return HS_EXIT_ERROR;
 
-    int pid = daemon_pid("/var/lib/hypersleep/lock");
-    if (pid > 0) {
+    int st = daemon_status(cfg->lock_path);
+    if (st > 0) {
         printf("hypersleepd: running\n");
+    } else if (st == 0) {
+        printf("hypersleepd: not running\n");
     } else {
-        printf("hypersleepd: not running (or lock file inaccessible)\n");
+        printf("hypersleepd: unknown (cannot probe %s: %s — "
+               "run as root or join group with read access)\n",
+               cfg->lock_path, strerror(errno));
     }
     printf("store:    %s\n", cfg->store_path);
     printf("index:    %s\n", cfg->index_path);
