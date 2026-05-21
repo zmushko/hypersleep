@@ -215,9 +215,24 @@ int snapshot_handle(hs_snapshot_t *s, const char *path,
     if (event_mask & (IN_DELETE | IN_DELETE_SELF)) {
         return handle_delete(s, path);
     }
-    if (event_mask & IN_MOVED_FROM) {
+
+    /* IN_MOVED_FROM here means "this path left for somewhere else".
+     * Common case: vim's default save sequence does
+     *     rename(target -> target~)   # IN_MOVED_FROM target, IN_MOVED_TO target~
+     *     write target                # IN_CREATE target, IN_CLOSE_WRITE target
+     * After exclude="~$" filters the IN_MOVED_TO out, the
+     * debouncer's per-path entry for `target` accumulates
+     *     IN_MOVED_FROM | IN_CREATE | IN_CLOSE_WRITE
+     * in a single mask. We MUST NOT treat the FROM as the dominant
+     * intent in that case — the file is back, with new content,
+     * and a capture is owed. Only record the pending cookie when
+     * no write/create follows. */
+    if ((event_mask & IN_MOVED_FROM)
+        && !(event_mask & (IN_CLOSE_WRITE | IN_CREATE | IN_MOVED_TO)))
+    {
         return handle_move_from(s, cookie, path);
     }
+
     if (event_mask & IN_MOVED_TO) {
         /* Best-effort cookie resolution for the audit log; the
          * destination still needs a content capture below regardless
