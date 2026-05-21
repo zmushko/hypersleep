@@ -16,6 +16,12 @@
 void log_init(const hs_config_t *cfg, bool foreground);
 void log_close(void);
 
+/* Override the minimum log level set during log_init. The CLI uses
+ * this to lift the floor from INFO (daemon-friendly) to WARN so
+ * successful operator commands do not decorate stdout/stderr with
+ * timestamped daemon-style chatter. */
+void log_set_level(enum hs_log_level lvl);
+
 void log_msg(enum hs_log_level lvl, const char *fmt, ...)
     __attribute__((format(printf, 2, 3)));
 

@@ -107,6 +107,11 @@ int main(int argc, char **argv) {
     }
 
     log_init(cfg, /*foreground*/ true);
+    /* CLI commands should be quiet on success: lift the floor to
+     * WARN so routine info-level chatter from shared library code
+     * (snapshot capture lines, "woke v3 -> ...", etc.) stays out
+     * of an operator's terminal. Real problems still surface. */
+    log_set_level(HS_LOG_WARN);
 
     int rc = HS_EXIT_USAGE;
     for (const struct subcmd *c = commands; c->name; c++) {

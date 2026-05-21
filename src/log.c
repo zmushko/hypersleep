@@ -125,6 +125,11 @@ void log_init(const hs_config_t *cfg, bool foreground)
     }
 }
 
+void log_set_level(enum hs_log_level lvl)
+{
+    g.level = lvl;
+}
+
 void log_close(void)
 {
     if (g.backend == LOG_BACKEND_FILE && g.file && g.file != stderr) {
